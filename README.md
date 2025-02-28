@@ -1,2 +1,2 @@
-# coin-128-forth
+# Coin-128 Forth
 Forth for the Commodore 128
