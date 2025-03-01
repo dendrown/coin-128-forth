@@ -9,10 +9,28 @@
 
 ; Constants
 .define APP_TITLE   "coin-128 forth"
-.define APP_VERSION "v0.1"
+.define APP_VERSION "0.1"
 
 .macro cstring s            ; Forth counted string
     .byte .strlen(s), s     ; (not a NULL-terminated C string)
+.endmacro
+
+
+.macro cprint s             ; Print a counted string
+.local load_char
+    ldy #$00
+load_char:
+    iny                     ; Text starts at offset 1
+    lda s,y                 ; A = next character
+    jsr JBSOUT              ; BASIC output(A)
+    cpy s                   ; Y == strlen?
+    bne load_char
+.endmacro
+
+
+.macro cprintln s           ; Print a counted string + CR
+    cprint s
+    jsr CROUT
 .endmacro
 
 
@@ -25,28 +43,16 @@
 
 main:
     cld                     ; No BCD operations at all
-    jsr cprint              ; FIXME: Macroize...!
-
-
+    cprintln welcome
+    jsr CROUT
+    cprintln silliness1
+    cprintln silliness2
 done:
+    jsr CROUT
     rts
 
 
 ;-----------------------------------------------------------------------------
-; CPRINT: output a counted string
-;   A: address of counted string (the initial count byte)
-cprint:
-    ldy #$00
-cprint_read:
-    iny                     ; Text starts at offset 1
-    lda title,y
-    jsr JBSOUT              ; BASIC output(A)
-    cpy title
-    bne cprint_read
-    rts
-
-
-;-----------------------------------------------------------------------------
-title:      cstring APP_TITLE
-version:    cstring APP_VERSION
-silliness:  cstring "Forth? Maybe zeroth...we don't do anything yet!"
+welcome:    cstring .sprintf("%s v%s", APP_TITLE, APP_VERSION)
+silliness1: cstring "forth? maybe zeroth..."
+silliness2: cstring "we don't do anything yet!"

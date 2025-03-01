@@ -10,7 +10,9 @@ VICSCN      := $0400    ; VIC 40-col text screen
 
 ;-----------------------------------------------------------------------------
 ; Hooks to BASIC
-JBSOUT       := $FFD2   ; Sends a byte to the current output logical file
+CRUPOUT     := $B8AD    ; Output carriage return + cursor up
+CROUT       := $B8B4    ; Output carriage return
+JBSOUT      := $FFD2    ; Sends a byte to the current output logical file
 
 ;-----------------------------------------------------------------------------
 ; Screen display codes
