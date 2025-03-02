@@ -9,12 +9,6 @@ __C128_MMAP_INC = 1
 VICSCN      := $0400    ; VIC 40-col text screen
 
 ;-----------------------------------------------------------------------------
-; Hooks to BASIC
-CRUPOUT     := $B8AD    ; Output carriage return + cursor up
-CROUT       := $B8B4    ; Output carriage return
-JBSOUT      := $FFD2    ; Sends a byte to the current output logical file
-
-;-----------------------------------------------------------------------------
 ; Screen display codes
 C_HLINE     = 64        ; Middle horizontal line
 C_VLINE     = 66        ; Middle vertical line
