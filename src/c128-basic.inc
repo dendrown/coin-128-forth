@@ -6,10 +6,15 @@
 __C128_BASIC_INC = 1
 
 ;-----------------------------------------------------------------------------
+; Zero Page Registers
+AUTINC  = $74           ; 75:74 Step value for program line auto-increment
+
+;-----------------------------------------------------------------------------
 ; Hooks to BASIC
+INLIN       := $4F93    ; Input a line to the input buffer (BUF)
+
 CRUPOUT     := $B8AD    ; Output carriage return + cursor up
 CROUT       := $B8B4    ; Output carriage return
-JBSOUT      := $FFD2    ; Sends a byte to the current output logical file
 
 ;-----------------------------------------------------------------------------
 ; BASIC tokens
