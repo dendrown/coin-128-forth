@@ -4,7 +4,6 @@
 ;-----------------------------------------------------------------------------
 .include "c128.inc"         ; cc65 definitions [origin: Elite128]
 .include "c128-defs.inc"    ; More definitions for the C128
-.include "c128-basic.inc"   ; To auto-build BASIC launcher
 
 ;ENTRY_LINK_NAME = 1        ; TODO: Rework struct with Coin-OP order (or NOT)
 
