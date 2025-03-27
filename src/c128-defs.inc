@@ -20,6 +20,9 @@ INLIN       := $4F93    ; Input a line to the input buffer (BUF)
 
 CRUPOUT     := $B8AD    ; Output carriage return + cursor up
 CROUT       := $B8B4    ; Output carriage return
+PRNTHEX     := $B892    ; Print six  hex digits + space from 68:67:66
+PRNTHEX4    := $B89F    ; Print four hex digits + space from X:A
+PRNTHEX2    := $B8A5    ; Print two  hex digits + space from A
 
 ;-----------------------------------------------------------------------------
 ; Jump-table to kernal routines

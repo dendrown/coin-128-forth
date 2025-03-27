@@ -63,9 +63,8 @@ douse:
     jmp push
 
 W1010:
-W9999:
 .ifdef ENTRY_LINK_NAME
-    .word W000
+    .word W0000
     cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
 .else
     ;byte "ti",'b'|$80
@@ -79,6 +78,24 @@ tib:                        ; TODO: TIB needs to be handled as a constant
     lda #>TIBX
     jmp push
 
+W3585:
+W9999:
+    cstring "."             ; TODO: Rework struct with Coin-OP order (or NOT)
+    .word W1010
+dot:
+    jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
+                            ; TODO: Check for empty stack!
+    lda PSTACK,x            ; Load lo-byte from top pstack cell
+    tay
+    inx
+    lda PSTACK,x            ; Load hi-byte from top pstack cell
+    inx
+    stx XSAVE               ; Save pstack pointer now that value is popped
+    tax                     ; X = hi-byte of cell
+    tya                     ; A = lo-byte of cell
+    jsr PRNTHEX4            ; TODO: print value according to BASE
+    ldx XSAVE               ; Restore pstack pointer
+    jmp next
 
 ;-----------------------------------------------------------------------------
 ; TODO: we are hanging out behind the BASIC stub for now. The kernel will
@@ -101,22 +118,27 @@ interpret:
 charin:
     jsr JBASIN
     cmp #C_SPACE
-    beq wordin
+    beq word_in
     cmp #C_RETURN
-    beq wordin
+    beq word_in
     sta WORD,y
     iny                     ; Prep for next character
     cpy MAXWORD+1           ; Past single-word buffer?
     bne charin
-    jmp errline
-wordin:
+    jmp line_error
+word_in:
+    pha                     ; Save space|CR
     lda #$00
-    sta WORD,y
+    sta WORD,y              ; Terminate word for -FIND
     jmp find
-    beq line                ; Process line without printing CR (yet)
-errline:
+word_out:
+    pla                     ; Get that last space|CR
+    cmp #C_SPACE            ; More before printing result line?
+    beq interpret           ; Yes, keep processing more words
+    jmp line_done           ; Process line
+line_error:
     cprintln error
-line:
+line_done:
     jsr CROUT
     zprintln WORD
     jsr CROUT
@@ -171,11 +193,11 @@ find_match:
     sta IP+1
     jmp (IP)
 find_no_more:
-    jmp errline             ; TODO: proper linkage into FORTH loop
+    jmp line_error          ; TODO: proper linkage into FORTH loop
 
 
 enter_ml:
-    store_w line,IP         ; TODO: ENTER_ML is TEMPORARY scaffolding
+    store_w word_out,IP     ; TODO: ENTER_ML is TEMPORARY scaffolding
     rts
 ;
 ; ENTER is common across all colon definitions
