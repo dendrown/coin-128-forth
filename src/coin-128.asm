@@ -1,6 +1,6 @@
 ; COIN-128: Coin-128 Forth for the Commodore-128
 ;
-; asmsyntax=asm68k  (6510/8502 ASM, but better syntax highlighting in vim)
+; vim: set ft=asm_ca65:
 ;-----------------------------------------------------------------------------
 .include "c128.inc"         ; cc65 definitions [origin: Elite128]
 .include "c128-defs.inc"    ; More definitions for the C128
@@ -43,11 +43,31 @@ done:
     rts
 
 ;-----------------------------------------------------------------------------
+; Forth vocabulary:
+; Word labels (W9999) correspond to fig6502 labels (L999).
+; @ref https://github.com/jefftranter/6502/blob/master/asm/fig-forth/fig6502.asm
 orig:
-W0000:
+W0000:                      ; VOCABULARY LIST
+    .word $0000             ; Start token (no backtracking beyond this point)
+W0867:
+    cstring "constant"      ; FIXME: PAST MAX LENGTH
+    .word W0000
+;   .word docol
+;   .word creat
+;   .word smudg
+;   .word lbrac
+;   .word semis
+const:
+    ldy #03                 ; IP is at code past link, offset by `jmp const`
+    lda (IP),y
+    pha
+    iny
+    lda (IP),y
+    jmp push
+
 W0902:
     cstring "user"          ; TODO: Rework struct with Coin-OP order (or NOT)
-    .word 0
+    .word W0867
 ;   .word docol
 ;   .word const
 ;   .word pscod
@@ -62,24 +82,47 @@ douse:
     adc UP+1
     jmp push
 
+W0928:
+    cstring "1"
+    .word W0902
+one:
+;   ------------------------; DEBUG
+;   lda IP
+;   sta TEMPF3
+;   lda IP+1
+;   sta TEMPF3+1
+;   ------------------------; DEBUG
+    jmp const
+    .word 1
+
+W0936:
+    cstring "2"
+    .word W0928
+two:
+    jmp const
+    .word 2
+
+W0944:
+    cstring "3"
+    .word W0936
+three:
+    jmp const
+    .word 3
+
 W1010:
 .ifdef ENTRY_LINK_NAME
-    .word W0000
+    .word W0944
     cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
 .else
     ;byte "ti",'b'|$80
     cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
-    .word W0000
+    .word W0944
 .endif
-tib:                        ; TODO: TIB needs to be handled as a constant
-    jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
-    lda #<TIBX
-    pha
-    lda #>TIBX
-    jmp push
+tib:
+    jmp const
+    .word TIBX
 
 W3585:
-W9999:
     cstring "."             ; TODO: Rework struct with Coin-OP order (or NOT)
     .word W1010
 dot:
@@ -97,6 +140,11 @@ dot:
     ldx XSAVE               ; Restore pstack pointer
     jmp next
 
+W9999:
+    cstring "debug"
+    .word W3585
+    jmp bye
+
 ;-----------------------------------------------------------------------------
 ; TODO: we are hanging out behind the BASIC stub for now. The kernel will
 ; move once we have a kernel to move and a memory layout to move it to.
@@ -111,6 +159,8 @@ abort:
     ; FORTH...              ; TODO: Select FORTH trunk vocabulary
     ; DEFINITIONS...        ; TODO: Set CURRENT to CONTEXT
 quit:
+    lda #$00
+    sta STATE
                             ; TODO: 0 BLK !
 interpret:
     store_w W9999,DP        ; TODO: Un-hardcode
@@ -143,6 +193,8 @@ line_done:
     zprintln WORD
     jsr CROUT
     jmp interpret           ; TODO: Handle interpretive/compile states
+bye:
+    rts
 
 ;-----------------------------------------------------------------------------
 find:                       ; TODO: Generalize for tick & interpret
@@ -216,6 +268,10 @@ push:                       ; PSTACK is on top of page 1300, grows down
 ; NEXT is the address interpreter that moves from machine-level word to word
 ;
 next:
+    lda STATE               ; Are we done with current iteration?
+    bne next_cont           ; no! Keep processing...
+    jmp word_out            ; TODO: Refactory per standard Forth loop
+next_cont:
     ldy #$01
     lda IP,y                ; Transfer hi-byte of *IP
     sta W+1                 ; into W

@@ -1,6 +1,6 @@
 ; Commodore-128 definitions
 ;
-; asmsyntax=asm68k  (6502/8502 ASM, but better syntax highlighting in vim)
+; vim: set ft=asm_ca65:
 ;-----------------------------------------------------------------------------
 .ifndef __C128_DEFS_INC
 __C128_MMAP_INC = 1
@@ -8,6 +8,7 @@ __C128_MMAP_INC = 1
 ; C128 memory map (beyond cc65 c128 include)
 PC          := $03      ; 03:04 Target address for JMPFAR and JSRFAR
 COUNT       := $0D      ; Working storage for various routines
+TEMPF3      := $50      ; Temporary storage for floating-point value (50..54)
 AUTINC      := $74      ; 75:74 Step value for program line auto-increment
 
 BUF         := $0200    ; Input buffer: BASIC & monitor (0200..02A1)

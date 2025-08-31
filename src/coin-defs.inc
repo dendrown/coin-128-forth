@@ -1,13 +1,14 @@
 ; COIN-128: Coin-128 Forth symbol/macro definitions
 ;
-; asmsyntax=asm68k  (6510/8502 ASM, but better syntax highlighting in vim)
+; vim: set ft=asm_ca65:
 ;-----------------------------------------------------------------------------
 ; Zero-page registers       ; LO:HI 16-bit pointers
-DP      := $40              ; 41:40 Dictionary pointer  (BASIC RESHO)
+STATE   := $3f              ; Forth main loop state     (<FINDPNT)
+DP      := $40              ; 41:40 Dictionary pointer  (>FINDPNT)
 FREE42  := $42              ; 43:42                     (BASIC RESHO)
 FREE44  := $44              ; 44                        (BASIC RESHO)
-NO_WORD := $63              ; 63-69 Curr word: 7 chars  (FAC1:FACSGN:SGNFLAG)
-WORD    := $6A              ; 6A-70 Curr word: 7 chars  (FAC2:ARGSGN:ARIFLAG)
+WORD    := $63              ; 63-70 Curr word: 14 chars (FAC1:FACSGN:SGNFLAG)
+                            ;                           (FAC2:ARGSGN:ARIFLAG)
 UP      := $74              ; 75:74 Forth User Pointer  (BASIC AUTINC)
 W       := $FA              ; FB:FA Forth Working (W) register
 IP      := $FC              ; FD:FC Forth Interpreter Pointer (IP)
@@ -17,7 +18,7 @@ TIBX    := $0B00            ; Initial Terminal Input Buffer
 PSTACK  := APPAREA          ; Parameter stack page
 
 
-MAXWORD = 6                 ; Maximum word length (note ZP buffer) : TODO: 32
+MAXWORD = 13                ; Maximum WORD length (note ZP buffer) : TODO: 32
 WORDOFF = 2                 ; Offset to WORD in dictionary entry
 WLENMSK = $7F               ; Word length bit mask
 WPRCBIT = $10               ; Word precedence bit to indicate IMMEDIATE word
