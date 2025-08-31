@@ -6,8 +6,6 @@
 .include "c128-defs.inc"    ; More definitions for the C128
 .include "coin-defs.inc"    ; Coin-128 Forth definitions & macros
 
-ENTRY_LINK_NAME = 1         ; TODO: Rework struct with Coin-OP order (or NOT)
-
 .setcpu "6502"
 
 ; Constants
@@ -233,9 +231,7 @@ find_test_char:
     cmp WORD-WORDOFF-1,y    ; Back up ONE for count byte and TWO for link
     bne find_no_match
     dey
-.ifdef ENTRY_LINK_NAME
     cpy #WORDOFF            ; Backed up to the count byte again?
-.endif
     beq find_match
     jmp find_test_char
 find_no_match:
