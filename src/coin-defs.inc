@@ -18,8 +18,8 @@ TIBX    := $0B00            ; Initial Terminal Input Buffer
 PSTACK  := APPAREA          ; Parameter stack page
 
 
-MAXWORD = 13                ; Maximum WORD length (note ZP buffer) : TODO: 32
-WORDOFF = 2                 ; Offset to WORD in dictionary entry
+MAXWORD = 13                ; Maximum WORD length (note ZP buffer): TODO: 32
+WORDOFF = 2                 ; Offset to name in dictionary entry: LFA:NFA:CFA:PFA
 WLENMSK = $7F               ; Word length bit mask
 WPRCBIT = $10               ; Word precedence bit to indicate IMMEDIATE word
 

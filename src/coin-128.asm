@@ -6,7 +6,7 @@
 .include "c128-defs.inc"    ; More definitions for the C128
 .include "coin-defs.inc"    ; Coin-128 Forth definitions & macros
 
-;ENTRY_LINK_NAME = 1        ; TODO: Rework struct with Coin-OP order (or NOT)
+ENTRY_LINK_NAME = 1         ; TODO: Rework struct with Coin-OP order (or NOT)
 
 .setcpu "6502"
 
@@ -49,10 +49,11 @@ done:
 orig:
 W0000:                      ; ------------------------------------------------
     .word $0000             ; VOCABULARY: start token (end of reverse search)
+    .byte $00
 
 W0718:                      ; ------------------------------------------------
-    cstring "swap"
     .word W0000
+    cstring "swap"
 swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
                             ; NOTE: a ZP stack would allow us to save ops using
                             ;       ldy/sty instead of pha/pla for byte 3 -> 1.
@@ -68,8 +69,8 @@ swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
     jmp put
 
 W0733:                      ; ------------------------------------------------
-    cstring "dup"
     .word W0718
+    cstring "dup"
 dup:                        ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
     lda PSTACK,x
     pha
@@ -77,8 +78,8 @@ dup:                        ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
     jmp push
 
 W0867:                      ; ------------------------------------------------
-    cstring "constant"
     .word W0733
+    cstring "constant"
 ;   .word docol
 ;   .word creat
 ;   .word smudg
@@ -93,8 +94,8 @@ const:
     jmp push
 
 W0902:                      ; ------------------------------------------------
-    cstring "user"          ; TODO: Rework struct with Coin-OP order (or NOT)
     .word W0867
+    cstring "user"          ; TODO: Rework struct with Coin-OP order (or NOT)
 ;   .word docol
 ;   .word const
 ;   .word pscod
@@ -110,8 +111,8 @@ douse:
     jmp push
 
 W0928:                      ; ------------------------------------------------
-    cstring "1"
     .word W0902
+    cstring "1"
 one:
 ;   ------------------------; DEBUG
 ;   lda IP
@@ -123,35 +124,29 @@ one:
     .word 1
 
 W0936:
-    cstring "2"
     .word W0928
+    cstring "2"
 two:
     jmp const
     .word 2
 
 W0944:
-    cstring "3"
     .word W0936
+    cstring "3"
 three:
     jmp const
     .word 3
 
 W1010:                      ; ------------------------------------------------
-.ifdef ENTRY_LINK_NAME
-    .word W0944
-    cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
-.else
-    ;byte "ti",'b'|$80
-    cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
-    .word W0944
-.endif
+    .word W0944             ; ;byte "ti",'b'|$80
+    cstring "tib"
 tib:
     jmp const
     .word TIBX
 
 W3585:                      ; ------------------------------------------------
-    cstring "."             ; TODO: Rework struct with Coin-OP order (or NOT)
     .word W1010
+    cstring "."
 dot:
     jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
                             ; TODO: Check for empty stack!
@@ -168,8 +163,8 @@ dot:
     jmp next
 
 W9999:                      ; ------------------------------------------------
-    cstring "debug"
     .word W3585
+    cstring "debug"
     jmp bye
 
 ;-----------------------------------------------------------------------------
@@ -225,22 +220,17 @@ bye:
 
 ;-----------------------------------------------------------------------------
 find:                       ; TODO: Generalize for tick & interpret
-.ifdef ENTRY_LINK_NAME
-    ldy #WORDOFF            ; Offset to word name
-.else
-    ldy #$00
-.endif
+    ldy #WORDOFF
     lda (DP),y              ; Load count byte
     and #WLENMSK            ; Remove precedence bit
+    beq find_no_match       ; Zero-length word never matches; end of dictionary
     sta COUNT               ; Save length for offset
-.ifdef ENTRY_LINK_NAME
-    clc
-    adc #WORDOFF            ; We'll be comparing characters in reverse
-.endif
-    tay
+    tay                     ; Y indexes from last char to first
+    iny
+    iny
 find_test_char:
     lda (DP),y              ; Load next char (working backwards)
-    cmp WORD-1,y            ; Back up one to account for count byte
+    cmp WORD-WORDOFF-1,y    ; Back up ONE for count byte and TWO for link
     bne find_no_match
     dey
 .ifdef ENTRY_LINK_NAME
@@ -249,10 +239,8 @@ find_test_char:
     beq find_match
     jmp find_test_char
 find_no_match:
-    ldy COUNT               ; Get offset to link to previous word
-    iny                     ; Offset = count byte + word length
-    iny                     ; Start with hi-byte
-    lda (DP),y              ; Only check hi-byte (no ZP dictionary)
+    ldy #$01                ; Link is first in word entry
+    lda (DP),y              ; Only check link hi-byte (no ZP dictionary)
     beq find_no_more        ; TODO: flag NOT-FOUND error
     pha                     ; Note hi-byte of next word
     dey
