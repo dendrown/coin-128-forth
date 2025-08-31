@@ -47,11 +47,38 @@ done:
 ; Word labels (W9999) correspond to fig6502 labels (L999).
 ; @ref https://github.com/jefftranter/6502/blob/master/asm/fig-forth/fig6502.asm
 orig:
-W0000:                      ; VOCABULARY LIST
-    .word $0000             ; Start token (no backtracking beyond this point)
-W0867:
-    cstring "constant"      ; FIXME: PAST MAX LENGTH
+W0000:                      ; ------------------------------------------------
+    .word $0000             ; VOCABULARY: start token (end of reverse search)
+
+W0718:                      ; ------------------------------------------------
+    cstring "swap"
     .word W0000
+swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
+                            ; NOTE: a ZP stack would allow us to save ops using
+                            ;       ldy/sty instead of pha/pla for byte 3 -> 1.
+    lda PSTACK+2,x          ; PUT prep: 2 -> RSTACK -> 0
+    pha
+    lda PSTACK+3,x          ; PUT prep: 3 -> RSTACK
+    pha
+    lda PSTACK,x            ; Move 0 -> 2
+    sta PSTACK+2,x
+    lda PSTACK+1,x          ; Move 1 -> 3
+    sta PSTACK+3,x
+    pla                     ; PUT prep:      RSTACK -> 1
+    jmp put
+
+W0733:                      ; ------------------------------------------------
+    cstring "dup"
+    .word W0718
+dup:                        ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
+    lda PSTACK,x
+    pha
+    lda PSTACK+1,x
+    jmp push
+
+W0867:                      ; ------------------------------------------------
+    cstring "constant"
+    .word W0733
 ;   .word docol
 ;   .word creat
 ;   .word smudg
@@ -65,7 +92,7 @@ const:
     lda (IP),y
     jmp push
 
-W0902:
+W0902:                      ; ------------------------------------------------
     cstring "user"          ; TODO: Rework struct with Coin-OP order (or NOT)
     .word W0867
 ;   .word docol
@@ -82,7 +109,7 @@ douse:
     adc UP+1
     jmp push
 
-W0928:
+W0928:                      ; ------------------------------------------------
     cstring "1"
     .word W0902
 one:
@@ -109,7 +136,7 @@ three:
     jmp const
     .word 3
 
-W1010:
+W1010:                      ; ------------------------------------------------
 .ifdef ENTRY_LINK_NAME
     .word W0944
     cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
@@ -122,7 +149,7 @@ tib:
     jmp const
     .word TIBX
 
-W3585:
+W3585:                      ; ------------------------------------------------
     cstring "."             ; TODO: Rework struct with Coin-OP order (or NOT)
     .word W1010
 dot:
@@ -140,7 +167,7 @@ dot:
     ldx XSAVE               ; Restore pstack pointer
     jmp next
 
-W9999:
+W9999:                      ; ------------------------------------------------
     cstring "debug"
     .word W3585
     jmp bye
@@ -258,11 +285,15 @@ enter:
     nop                     ; TODO: common entry for all colon defs
 
 
+;
+; PUSH/PUT: parameter stack operations
+;
 push:                       ; PSTACK is on top of page 1300, grows down
     dex
-    sta PSTACK,X            ; Hi byte in A
-    pla                     ; Lo byte on R-stack
     dex
+put:
+    sta PSTACK+1,X          ; Hi byte in A
+    pla                     ; Lo byte on R-stack
     sta PSTACK,X
 ;
 ; NEXT is the address interpreter that moves from machine-level word to word
