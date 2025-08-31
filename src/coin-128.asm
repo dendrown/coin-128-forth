@@ -6,8 +6,6 @@
 .include "c128-defs.inc"    ; More definitions for the C128
 .include "coin-defs.inc"    ; Coin-128 Forth definitions & macros
 
-;ENTRY_LINK_NAME = 1        ; TODO: Rework struct with Coin-OP order (or NOT)
-
 .setcpu "6502"
 
 ; Constants
@@ -113,12 +111,6 @@ W0928:                      ; ------------------------------------------------
     cstring "1"
     .word W0902
 one:
-;   ------------------------; DEBUG
-;   lda IP
-;   sta TEMPF3
-;   lda IP+1
-;   sta TEMPF3+1
-;   ------------------------; DEBUG
     jmp const
     .word 1
 
@@ -137,20 +129,14 @@ three:
     .word 3
 
 W1010:                      ; ------------------------------------------------
-.ifdef ENTRY_LINK_NAME
+    cstring "tib"           ; byte "ti",'b'|$80
     .word W0944
-    cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
-.else
-    ;byte "ti",'b'|$80
-    cstring "tib"           ; TODO: Rework struct with Coin-OP order (or NOT)
-    .word W0944
-.endif
 tib:
     jmp const
     .word TIBX
 
 W3585:                      ; ------------------------------------------------
-    cstring "."             ; TODO: Rework struct with Coin-OP order (or NOT)
+    cstring "."             ; DOT
     .word W1010
 dot:
     jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
@@ -225,27 +211,16 @@ bye:
 
 ;-----------------------------------------------------------------------------
 find:                       ; TODO: Generalize for tick & interpret
-.ifdef ENTRY_LINK_NAME
-    ldy #WORDOFF            ; Offset to word name
-.else
     ldy #$00
-.endif
     lda (DP),y              ; Load count byte
     and #WLENMSK            ; Remove precedence bit
     sta COUNT               ; Save length for offset
-.ifdef ENTRY_LINK_NAME
-    clc
-    adc #WORDOFF            ; We'll be comparing characters in reverse
-.endif
     tay
 find_test_char:
     lda (DP),y              ; Load next char (working backwards)
     cmp WORD-1,y            ; Back up one to account for count byte
     bne find_no_match
     dey
-.ifdef ENTRY_LINK_NAME
-    cpy #WORDOFF            ; Backed up to the count byte again?
-.endif
     beq find_match
     jmp find_test_char
 find_no_match:
