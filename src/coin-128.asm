@@ -46,7 +46,8 @@ done:
 ; @ref https://github.com/jefftranter/6502/blob/master/asm/fig-forth/fig6502.asm
 orig:
 W0000:                      ; ------------------------------------------------
-    .word $0000             ; VOCABULARY: start token (end of reverse search)
+    .byte $00               ; VOCABULARY: start token (end of reverse search)
+    .word $0000
 
 W0718:                      ; ------------------------------------------------
     cstring "swap"
@@ -214,6 +215,7 @@ find:                       ; TODO: Generalize for tick & interpret
     ldy #$00
     lda (DP),y              ; Load count byte
     and #WLENMSK            ; Remove precedence bit
+    beq find_no_match       ; Zero-length word never matches; end of dictionary
     sta COUNT               ; Save length for offset
     tay
 find_test_char:
