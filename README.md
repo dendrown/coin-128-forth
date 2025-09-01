@@ -68,7 +68,7 @@ expertise in 6502 assembly language and/or forth interpreters suggesting improve
 to either algorithm.  Note that I have also considered (but have not coded) a strategy
 that is link-first, but has the dictionary pointer pointing to the name.  Essentially,
 `DP` points into the entry at its second field, simplifying comparison of the current
-word and perhaps directly fulfilling the spirit of the "fixed offset -2" design description.
+word and perhaps directly fulfilling the spirit of the "fixed offset of -2" design description.
 However, I know of no way to do negative indexed addressing on the 6502, and I cannot
 see how to code a subtraction or double decrement operation such that it will take fewer
 cycles than either of the two methods I have coded.
