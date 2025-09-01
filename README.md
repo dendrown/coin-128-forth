@@ -20,7 +20,7 @@ According to Atari's manual:
 
 For the current (preliminary) version of Coin-128 FORTH, I have tried implementing
 dictionary entries both ways. In the `diff` listing below, the red (`-`) lines are
-the for the name-first strategy; the green (`+`) lines are for the link-first strategy;
+the for the link-first strategy; the green (`+`) lines are for the name-first strategy;
 while the white lines are common to both strategies.
 ```diff
  find:                       ; TODO: Generalize for tick & interpret
