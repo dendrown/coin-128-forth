@@ -49,9 +49,44 @@ W0000:                      ; ------------------------------------------------
     .byte $00               ; VOCABULARY: start token (end of reverse search)
     .word $0000
 
+W0632:                      ; ------------------------------------------------
+    cstring "+"
+    .word W0000
+plus:
+    clc
+    lda PSTACK,x            ; Lo byte of TOP
+    adc PSTACK+2,x          ; Lo byte of TOP-1
+    sta PSTACK+2,x
+    lda PSTACK+1,x          ; Hi byte of TOP
+    adc PSTACK+3,x          ; Hi byte of TOP-1
+    sta PSTACK+3,x
+    jmp pop                 ; Result in TOP-1...drop TOP
+
+W0670:                      ; ------------------------------------------------
+    cstring "-"
+    .word W0632
+minus:
+    sec
+    lda PSTACK+2,x          ; Lo byte of TOP-1
+    sbc PSTACK,x            ; Lo byte of TOP
+    sta PSTACK+2,x
+    lda PSTACK+3,x          ; Hi byte of TOP-1
+    sbc PSTACK+1,x          ; Hi byte of TOP
+    sta PSTACK+3,x
+    jmp pop                 ; Result in TOP-1...drop TOP
+
+W0711:                      ; ------------------------------------------------
+    cstring "drop"
+    .word W0670
+drop:
+pop:                        ; TODO: move to poptwo/pop in (do) W0185
+    inx
+    inx
+    jmp next
+
 W0718:                      ; ------------------------------------------------
     cstring "swap"
-    .word W0000
+    .word W0711
 swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
                             ; NOTE: a ZP stack would allow us to save ops using
                             ;       ldy/sty instead of pha/pla for byte 3 -> 1.
@@ -269,8 +304,8 @@ push:                       ; PSTACK is on top of page 1300, grows down
     dex
     dex
 put:
-    sta PSTACK+1,X          ; Hi byte in A
-    pla                     ; Lo byte on R-stack
+    sta PSTACK+1,X          ; Hi byte from A
+    pla                     ; Lo byte from R-stack
     sta PSTACK,X
 ;
 ; NEXT is the address interpreter that moves from machine-level word to word
