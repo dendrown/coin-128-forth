@@ -25,7 +25,20 @@ WPRCBIT = $10               ; Word precedence bit to indicate IMMEDIATE word
 
 
 ;-----------------------------------------------------------------------------
+; Assembler variables
+forth_word_num .set 0       ; Holds the link to the previous FORTH_WORD
+
+
+;-----------------------------------------------------------------------------
 ; Macros
+.macro FORTH_WORD num, name ; Creates name:link for a dictionary entry
+.ident (.sprintf("W%04d", num)):
+    cstring name
+    .word .ident (.sprintf("W%04d", forth_word_num))
+    forth_word_num .set num
+.endmacro
+
+
 .macro cstring s            ; Forth counted string
     .byte .strlen(s), s     ; (not a NULL-terminated C string)
 .endmacro
@@ -95,7 +108,7 @@ done:
 .endmacro
 
 
-.macro store_w w,addr       ; Store a 16-bit value in addr (LO:HI)
+.macro store_w w, addr      ; Store a 16-bit value in addr (LO:HI)
     lda #<(w)
     sta addr
     lda #>(w)

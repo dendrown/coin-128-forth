@@ -49,9 +49,7 @@ W0000:                      ; ------------------------------------------------
     .byte $00               ; VOCABULARY: start token (end of reverse search)
     .word $0000
 
-W0632:                      ; ------------------------------------------------
-    cstring "+"
-    .word W0000
+FORTH_WORD 632, "+"          ; ------------------------------------------------
 plus:
     clc
     lda PSTACK,x            ; Lo byte of TOP
@@ -62,9 +60,7 @@ plus:
     sta PSTACK+3,x
     jmp pop                 ; Result in TOP-1...drop TOP
 
-W0670:                      ; ------------------------------------------------
-    cstring "-"
-    .word W0632
+FORTH_WORD 670, "-"         ; ------------------------------------------------
 minus:
     sec
     lda PSTACK+2,x          ; Lo byte of TOP-1
@@ -75,18 +71,14 @@ minus:
     sta PSTACK+3,x
     jmp pop                 ; Result in TOP-1...drop TOP
 
-W0711:                      ; ------------------------------------------------
-    cstring "drop"
-    .word W0670
+FORTH_WORD 711, "drop"      ; ------------------------------------------------
 drop:
 pop:                        ; TODO: move to poptwo/pop in (do) W0185
     inx
     inx
     jmp next
 
-W0718:                      ; ------------------------------------------------
-    cstring "swap"
-    .word W0711
+FORTH_WORD 718, "swap"      ; ------------------------------------------------
 swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
                             ; NOTE: a ZP stack would allow us to save ops using
                             ;       ldy/sty instead of pha/pla for byte 3 -> 1.
@@ -101,18 +93,14 @@ swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
     pla                     ; PUT prep:      RSTACK -> 1
     jmp put
 
-W0733:                      ; ------------------------------------------------
-    cstring "dup"
-    .word W0718
+FORTH_WORD 733, "dup"       ; ------------------------------------------------
 dup:                        ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
     lda PSTACK,x
     pha
     lda PSTACK+1,x
     jmp push
 
-W0867:                      ; ------------------------------------------------
-    cstring "constant"
-    .word W0733
+FORTH_WORD 867, "constant"  ; ------------------------------------------------
 ;   .word docol
 ;   .word creat
 ;   .word smudg
@@ -126,9 +114,7 @@ const:
     lda (IP),y
     jmp push
 
-W0902:                      ; ------------------------------------------------
-    cstring "user"          ; TODO: Rework struct with Coin-OP order (or NOT)
-    .word W0867
+FORTH_WORD 902, "user"      ; ------------------------------------------------
 ;   .word docol
 ;   .word const
 ;   .word pscod
@@ -143,37 +129,27 @@ douse:
     adc UP+1
     jmp push
 
-W0928:                      ; ------------------------------------------------
-    cstring "1"
-    .word W0902
+FORTH_WORD 928, "1"         ; ------------------------------------------------
 one:
     jmp const
     .word 1
 
-W0936:
-    cstring "2"
-    .word W0928
+FORTH_WORD 936, "2"         ; ------------------------------------------------
 two:
     jmp const
     .word 2
 
-W0944:
-    cstring "3"
-    .word W0936
+FORTH_WORD 944, "3"         ; ------------------------------------------------
 three:
     jmp const
     .word 3
 
-W1010:                      ; ------------------------------------------------
-    cstring "tib"           ; byte "ti",'b'|$80
-    .word W0944
+FORTH_WORD 1010, "tib"      ; ------------------------------------------------
 tib:
     jmp const
     .word TIBX
 
-W3585:                      ; ------------------------------------------------
-    cstring "."             ; DOT
-    .word W1010
+FORTH_WORD 3585, "."        ; ------------------------------------------------
 dot:
     jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
                             ; TODO: Check for empty stack!
@@ -189,9 +165,7 @@ dot:
     ldx XSAVE               ; Restore pstack pointer
     jmp next
 
-W9999:                      ; ------------------------------------------------
-    cstring "debug"
-    .word W3585
+FORTH_WORD 9999, "debug"    ; ------------------------------------------------
     jmp bye
 
 ;-----------------------------------------------------------------------------
