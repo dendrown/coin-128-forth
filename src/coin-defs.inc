@@ -26,16 +26,17 @@ WPRCBIT = $10               ; Word precedence bit to indicate IMMEDIATE word
 
 ;-----------------------------------------------------------------------------
 ; Assembler variables
-forth_word_num .set 0       ; Holds the link to the previous FORTH_WORD
+curr_forth_word .set 0      ; Holds the link to the current FORTH_WORD
 
 
 ;-----------------------------------------------------------------------------
 ; Macros
-.macro FORTH_WORD num, name ; Creates name:link for a dictionary entry
-.ident (.sprintf("W%04d", num)):
-    cstring name
-    .word .ident (.sprintf("W%04d", forth_word_num))
-    forth_word_num .set num
+.macro FORTH_WORD name      ; Creates name:link for a dictionary entry
+    prev_forth_word .set curr_forth_word
+    curr_forth_word .set curr_forth_word + 1
+.ident (.sprintf("W%04d", curr_forth_word)):
+    cstring name                                        ; NFA
+    .word .ident (.sprintf("W%04d", prev_forth_word))   ; LFA
 .endmacro
 
 

@@ -42,14 +42,14 @@ done:
 
 ;-----------------------------------------------------------------------------
 ; Forth vocabulary:
-; Word labels (W9999) correspond to fig6502 labels (L999).
+; Word order corresponds to fig6502.
 ; @ref https://github.com/jefftranter/6502/blob/master/asm/fig-forth/fig6502.asm
 orig:
-W0000:                      ; ------------------------------------------------
+W0000:
     .byte $00               ; VOCABULARY: start token (end of reverse search)
     .word $0000
 
-FORTH_WORD 632, "+"          ; ------------------------------------------------
+FORTH_WORD "+"              ; ------------------------------------------------
 plus:
     clc
     lda PSTACK,x            ; Lo byte of TOP
@@ -60,7 +60,7 @@ plus:
     sta PSTACK+3,x
     jmp pop                 ; Result in TOP-1...drop TOP
 
-FORTH_WORD 670, "-"         ; ------------------------------------------------
+FORTH_WORD "-"              ; ------------------------------------------------
 minus:
     sec
     lda PSTACK+2,x          ; Lo byte of TOP-1
@@ -71,14 +71,14 @@ minus:
     sta PSTACK+3,x
     jmp pop                 ; Result in TOP-1...drop TOP
 
-FORTH_WORD 711, "drop"      ; ------------------------------------------------
+FORTH_WORD "drop"           ; ------------------------------------------------
 drop:
 pop:                        ; TODO: move to poptwo/pop in (do) W0185
     inx
     inx
     jmp next
 
-FORTH_WORD 718, "swap"      ; ------------------------------------------------
+FORTH_WORD "swap"           ; ------------------------------------------------
 swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
                             ; NOTE: a ZP stack would allow us to save ops using
                             ;       ldy/sty instead of pha/pla for byte 3 -> 1.
@@ -93,14 +93,14 @@ swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
     pla                     ; PUT prep:      RSTACK -> 1
     jmp put
 
-FORTH_WORD 733, "dup"       ; ------------------------------------------------
+FORTH_WORD "dup"            ; ------------------------------------------------
 dup:                        ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
     lda PSTACK,x
     pha
     lda PSTACK+1,x
     jmp push
 
-FORTH_WORD 867, "constant"  ; ------------------------------------------------
+FORTH_WORD "constant"       ; ------------------------------------------------
 ;   .word docol
 ;   .word creat
 ;   .word smudg
@@ -114,7 +114,7 @@ const:
     lda (IP),y
     jmp push
 
-FORTH_WORD 902, "user"      ; ------------------------------------------------
+FORTH_WORD "user"           ; ------------------------------------------------
 ;   .word docol
 ;   .word const
 ;   .word pscod
@@ -129,27 +129,27 @@ douse:
     adc UP+1
     jmp push
 
-FORTH_WORD 928, "1"         ; ------------------------------------------------
+FORTH_WORD "1"              ; ------------------------------------------------
 one:
     jmp const
     .word 1
 
-FORTH_WORD 936, "2"         ; ------------------------------------------------
+FORTH_WORD "2"              ; ------------------------------------------------
 two:
     jmp const
     .word 2
 
-FORTH_WORD 944, "3"         ; ------------------------------------------------
+FORTH_WORD "3"              ; ------------------------------------------------
 three:
     jmp const
     .word 3
 
-FORTH_WORD 1010, "tib"      ; ------------------------------------------------
+FORTH_WORD "tib"            ; ------------------------------------------------
 tib:
     jmp const
     .word TIBX
 
-FORTH_WORD 3585, "."        ; ------------------------------------------------
+FORTH_WORD "."              ; ------------------------------------------------
 dot:
     jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
                             ; TODO: Check for empty stack!
@@ -165,7 +165,8 @@ dot:
     ldx XSAVE               ; Restore pstack pointer
     jmp next
 
-FORTH_WORD 9999, "debug"    ; ------------------------------------------------
+W9999:
+FORTH_WORD "debug"          ; ------------------------------------------------
     jmp bye
 
 ;-----------------------------------------------------------------------------
@@ -186,7 +187,7 @@ quit:
     sta STATE
                             ; TODO: 0 BLK !
 interpret:
-    store_w W9999,DP        ; TODO: Un-hardcode
+    store_w W9999,DP
     ldy #$00
 charin:
     jsr JBASIN
