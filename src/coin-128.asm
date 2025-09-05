@@ -150,9 +150,9 @@ tib:
     .word TIBX
 
 FORTH_WORD "."              ; ------------------------------------------------
-dot:
-    jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
-                            ; TODO: Check for empty stack!
+dot:                        ; TODO: Check for empty stack!
+    inc PNTR                ; Give space so we don't overwrite the dot
+    inc PNTR
     lda PSTACK,x            ; Load lo-byte from top pstack cell
     tay
     inx
@@ -209,12 +209,13 @@ word_out:
     pla                     ; Get that last space|CR
     cmp #C_SPACE            ; More before printing result line?
     beq interpret           ; Yes, keep processing more words
-    jmp line_done           ; Process line
+    jmp line_out            ; Process line
 line_error:
     cprintln error
-line_done:
-    jsr CROUT
-    zprintln WORD
+    jmp quit
+line_out:
+    inc PNTR
+    cprint ok
     jsr CROUT
     jmp interpret           ; TODO: Handle interpretive/compile states
 bye:
@@ -288,7 +289,7 @@ put:
 next:
     lda STATE               ; Are we done with current iteration?
     bne next_cont           ; no! Keep processing...
-    jmp word_out            ; TODO: Refactory per standard Forth loop
+    jmp word_out            ; TODO: Refactor per standard Forth loop
 next_cont:
     ldy #$01
     lda IP,y                ; Transfer hi-byte of *IP
@@ -311,6 +312,7 @@ next_done:
 .rodata
 
 welcome:    cstring .sprintf("%s v%s", APP_TITLE, APP_VERSION)
+ok:         cstring " ok"
 error:      cstring "error!"
 silliness1: cstring "forth? maybe zeroth..."
 silliness2: cstring "we don't do anything yet!"

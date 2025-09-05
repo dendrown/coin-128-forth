@@ -10,6 +10,7 @@ PC          := $03      ; 03:04 Target address for JMPFAR and JSRFAR
 COUNT       := $0D      ; Working storage for various routines
 TEMPF3      := $50      ; Temporary storage for floating-point value (50..54)
 AUTINC      := $74      ; 75:74 Step value for program line auto-increment
+PNTR        := $EC      ; Current cursor column
 
 BUF         := $0200    ; Input buffer: BASIC & monitor (0200..02A1)
 VICSCN      := $0400    ; VIC 40-col text screen

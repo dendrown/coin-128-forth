@@ -84,7 +84,7 @@ zprint_done:
 
 
 .macro zprintln s           ; Print a NUL-terminated string + CR
-    ziprint s
+    zprint s
     jsr CROUT
 .endmacro
 
