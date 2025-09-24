@@ -107,11 +107,11 @@ FORTH_WORD "constant"       ; ------------------------------------------------
 ;   .word lbrac
 ;   .word semis
 const:
-    ldy #03                 ; IP is at code past link, offset by `jmp const`
-    lda (IP),y
+    ldy #$03                ; IP is at code past link, offset by `jmp const`
+    lda (W),y
     pha
     iny
-    lda (IP),y
+    lda (W),y
     jmp push
 
 FORTH_WORD "user"           ; ------------------------------------------------
@@ -149,6 +149,14 @@ tib:
     jmp const
     .word TIBX
 
+FORTH_WORD "1+"             ; ------------------------------------------------
+one_plus:
+    jmp enter
+    .word one
+    .word plus
+    .word exit
+
+
 FORTH_WORD "."              ; ------------------------------------------------
 dot:                        ; TODO: Check for empty stack!
     inc PNTR                ; Give space so we don't overwrite the dot
@@ -164,6 +172,29 @@ dot:                        ; TODO: Check for empty stack!
     jsr PRNTHEX4            ; TODO: print value according to BASE
     ldx XSAVE               ; Restore pstack pointer
     jmp next
+
+W9997:
+FORTH_WORD "noop"           ; ------------------------------------------------
+noop:                       ; Debug word that does nothing
+    jmp enter
+    .word exit
+
+W9998:
+FORTH_WORD "~out"           ; ------------------------------------------------
+word_out:
+    .word *+2               ; FIXME: FAKE (second) WORD LINK
+    pla                     ; Get that last space|CR
+    cmp #C_SPACE            ; More before printing result line?
+    beq interpret           ; Yes, keep processing more words
+    jmp line_out            ; Process line
+line_error:
+    cprintln error
+    jmp quit
+line_out:
+    inc PNTR
+    cprint ok
+    jsr CROUT
+    jmp interpret           ; TODO: Handle interpretive/compile states
 
 W9999:
 FORTH_WORD "debug"          ; ------------------------------------------------
@@ -187,7 +218,8 @@ quit:
     sta STATE
                             ; TODO: 0 BLK !
 interpret:
-    store_w W9999,DP
+    store_w W9999,DP        ; Initialize start of dictionary
+    store_w word_out,IP     ; TODO: Forthify this hack!
     ldy #$00
 charin:
     jsr JBASIN
@@ -205,19 +237,6 @@ word_in:
     lda #$00
     sta WORD,y              ; Terminate word for -FIND
     jmp find
-word_out:
-    pla                     ; Get that last space|CR
-    cmp #C_SPACE            ; More before printing result line?
-    beq interpret           ; Yes, keep processing more words
-    jmp line_out            ; Process line
-line_error:
-    cprintln error
-    jmp quit
-line_out:
-    inc PNTR
-    cprint ok
-    jsr CROUT
-    jmp interpret           ; TODO: Handle interpretive/compile states
 bye:
     rts
 
@@ -254,11 +273,11 @@ find_match:
     lda COUNT
     adc #WORDOFF+1          ; Word char count + length + link will never carry
     adc DP                  ; Calc lo byte offset to dictionary code
-    sta IP
+    sta W
     lda DP+1
     adc #$00                ; Handle carry for 16-bit + 8-bit addition
-    sta IP+1
-    jmp (IP)
+    sta W+1
+    jmp (W)
 find_no_more:
     jmp line_error          ; TODO: proper linkage into FORTH loop
 
@@ -269,10 +288,31 @@ enter_ml:
 ;
 ; ENTER is common across all colon definitions
 ;
-enter:
-    nop                     ; TODO: common entry for all colon defs
-
-
+enter:                      ; Common entry for all colon defs
+    clc                     ; Push IP++ for where we came from on the RSTACK
+    lda IP
+    adc #$02                ; Increment pointer to next word as we stack it
+    pha                     ; Stack BACKWARDS [__:LO] to combine ADD/PUSH
+    lda IP+1
+    adc #$00
+    pha                     ; Stack BACKWARDS [HI:lo]
+    clc                     ; Set IP <- first WORD address
+    lda W                   ; W points to JMP ENTER in the current word
+    adc #$03                ; skip past the JMP instruction
+    sta IP
+    lda W+1
+    adc #$00
+    sta IP+1
+    jmp next
+;
+; EXIT represents the semicolon for all word definitions
+;
+exit:                       ; Terminate forth word thread
+    pla
+    sta IP+1                ; Remove from RSTACK BACKWARDS [HI:lo] (see: ENTER)
+    pla
+    sta IP                  ; Remove from RSTACK BACKWARDS [__:LO]
+    jmp (IP)
 ;
 ; PUSH/PUT: parameter stack operations
 ;
@@ -287,25 +327,20 @@ put:
 ; NEXT is the address interpreter that moves from machine-level word to word
 ;
 next:
-    lda STATE               ; Are we done with current iteration?
-    bne next_cont           ; no! Keep processing...
-    jmp word_out            ; TODO: Refactor per standard Forth loop
-next_cont:
-    ldy #$01
-    lda IP,y                ; Transfer hi-byte of *IP
-    sta W+1                 ; into W
-    dey
-    lda IP,y                ; Transfer lo-byte of *IP
-    sta W                   ; into W
+    ldy #$00                ; Set W <- (IP)
+    lda (IP),y
+    sta W
+    iny
+    lda (IP),y
+    sta W+1
     clc
-    lda IP                  ; Advance IP
-    adc #$02
+    lda IP                  ; Set IP <- next word
+    adc #$02                ; Advance IP
     sta IP
-    bcc next_done
-    inc IP+1                ; High byte ticked on IP+=2 operation
-next_done:
+    lda IP+1
+    adc #$00
+    sta IP+1
     jmp (W)                 ; Execute DTC
-
 
 
 ;-----------------------------------------------------------------------------
