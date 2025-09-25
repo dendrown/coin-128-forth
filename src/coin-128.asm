@@ -36,6 +36,7 @@ main:
     cprintln silliness1
     jsr coin
 done:
+    jsr CROUT
     cprintln silliness2
     jsr CROUT
     rts
@@ -48,6 +49,19 @@ orig:
 W0000:
     .byte $00               ; VOCABULARY: start token (end of reverse search)
     .word $0000
+
+FORTH_WORD ">r"             ; ------------------------------------------------
+to_r:                       ; >R (n -- )
+    lda PSTACK+1,x          ; Transfer HI byte (BACKWARDS on RSTACK)
+    pha
+    lda PSTACK,x            ; Transfer LO byte (BACKWARDS on RESTACK)
+    pha
+    jmp pop
+
+FORTH_WORD "r>"             ; ------------------------------------------------
+r_from:                     ; >R ( -- n)
+    pla                     ; Prep LO byte
+    jmp push                ; Push takes HI byte from RSTACK
 
 FORTH_WORD "+"              ; ------------------------------------------------
 plus:
@@ -71,8 +85,15 @@ minus:
     sta PSTACK+3,x
     jmp pop                 ; Result in TOP-1...drop TOP
 
+FORTH_WORD "over"           ; ------------------------------------------------
+over:                       ; OVER (n1 n2 -- n1 n2 n1)
+    lda PSTACK+2,x
+    pha
+    lda PSTACK+3,x
+    jmp push
+
 FORTH_WORD "drop"           ; ------------------------------------------------
-drop:
+drop:                       ; DROP (n -- )
 pop:                        ; TODO: move to poptwo/pop in (do) W0185
     inx
     inx
@@ -156,6 +177,14 @@ one_plus:
     .word plus
     .word exit
 
+FORTH_WORD "rot"            ; ------------------------------------------------
+rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
+    jmp enter
+    .word to_r
+    .word swap
+    .word r_from
+    .word swap
+    .word exit
 
 FORTH_WORD "."              ; ------------------------------------------------
 dot:                        ; TODO: Check for empty stack!
@@ -183,7 +212,7 @@ W9998:
 FORTH_WORD "~out"           ; ------------------------------------------------
 word_out:
     .word *+2               ; FIXME: FAKE (second) WORD LINK
-    pla                     ; Get that last space|CR
+    lda WEND                ; Get the last space|CR
     cmp #C_SPACE            ; More before printing result line?
     beq interpret           ; Yes, keep processing more words
     jmp line_out            ; Process line
@@ -233,7 +262,7 @@ charin:
     bne charin
     jmp line_error
 word_in:
-    pha                     ; Save space|CR
+    sta WEND                ; Save space|CR
     lda #$00
     sta WORD,y              ; Terminate word for -FIND
     jmp find
@@ -316,7 +345,7 @@ exit:                       ; Terminate forth word thread
 ;
 ; PUSH/PUT: parameter stack operations
 ;
-push:                       ; PSTACK is on top of page 1300, grows down
+push:                       ; PSTACK uses page 1300, grows from the top, down
     dex
     dex
 put:

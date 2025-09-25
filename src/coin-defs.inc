@@ -5,11 +5,12 @@
 ; Zero-page registers       ; LO:HI 16-bit pointers
 STATE   := $3f              ; Forth main loop state     (<FINDPNT)
 DP      := $40              ; 41:40 Dictionary pointer  (>FINDPNT)
-FREE42  := $42              ; 43:42                     (BASIC RESHO)
-FREE44  := $44              ; 44                        (BASIC RESHO)
+FREE41  := $41              ; 42:41                     (BASIC DATLIN)
+FREE43  := $41              ; 44:43                     (BASIC DATPTR)
 WORD    := $63              ; 63-70 Curr word: 14 chars (FAC1:FACSGN:SGNFLAG)
                             ;                           (FAC2:ARGSGN:ARIFLAG)
 UP      := $74              ; 75:74 Forth User Pointer  (BASIC AUTINC)
+WEND    := $80              ; Word END character        (BASIC POINT)
 W       := $FA              ; FB:FA Forth Working (W) register
 IP      := $FC              ; FD:FC Forth Interpreter Pointer (IP)
 XSAVE   := $FE              ; Temporary for X register
