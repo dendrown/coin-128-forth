@@ -59,7 +59,7 @@ dot_s_loop:
     beq dot_s_done
     dex
     dex
-    jsr sub_dot
+    jsr dot_sub
     dex                     ; Unpop the printed value on the PSTACK
     dex
     jmp dot_s_loop
@@ -205,9 +205,9 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
 
 FORTH_WORD "."              ; ------------------------------------------------
 dot:                        ; TODO: Check for empty stack!
-    jsr sub_dot
+    jsr dot_sub
     jmp next
-sub_dot:                    ; Subroutine called from . and .S
+dot_sub:                    ; Subroutine called from . and .S
     inc PNTR                ; Give space so we don't overwrite the dot
     inc PNTR
     lda PSTACK,x            ; Load lo-byte from top pstack cell
