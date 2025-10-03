@@ -11,6 +11,7 @@ WORD    := $63              ; 63-70 Curr word: 14 chars (FAC1:FACSGN:SGNFLAG)
                             ;                           (FAC2:ARGSGN:ARIFLAG)
 UP      := $74              ; 75:74 Forth User Pointer  (BASIC AUTINC)
 WEND    := $80              ; Word END character        (BASIC POINT)
+WLEN    := $82              ; Interpreted word length   (BASIC OLDSTK)
 W       := $FA              ; FB:FA Forth Working (W) register
 IP      := $FC              ; FD:FC Forth Interpreter Pointer (IP)
 XSAVE   := $FE              ; Temporary for X register

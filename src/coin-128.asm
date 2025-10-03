@@ -50,6 +50,23 @@ W0000:
     .byte $00               ; VOCABULARY: start token (end of reverse search)
     .word $0000
 
+FORTH_WORD ".s"             ; ------------------------------------------------
+dot_s:                      ; .S (_ -- _)
+    stx W                   ; We need XSAVE for stack/print exchange, so use W
+    ldx #$00                ; Start as if the PSTACK were empty
+dot_s_loop:
+    cpx W                   ; Real value of PSP (X) ?
+    beq dot_s_done
+    dex
+    dex
+    jsr sub_dot
+    dex                     ; Unpop the printed value on the PSTACK
+    dex
+    jmp dot_s_loop
+dot_s_done:
+    ldx W                   ; Restore real PSP (X) value
+    jmp next
+
 FORTH_WORD ">r"             ; ------------------------------------------------
 to_r:                       ; >R (n -- )
     lda PSTACK+1,x          ; Transfer HI byte (BACKWARDS on RSTACK)
@@ -188,6 +205,9 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
 
 FORTH_WORD "."              ; ------------------------------------------------
 dot:                        ; TODO: Check for empty stack!
+    jsr sub_dot
+    jmp next
+sub_dot:                    ; Subroutine called from . and .S
     inc PNTR                ; Give space so we don't overwrite the dot
     inc PNTR
     lda PSTACK,x            ; Load lo-byte from top pstack cell
@@ -200,7 +220,7 @@ dot:                        ; TODO: Check for empty stack!
     tya                     ; A = lo-byte of cell
     jsr PRNTHEX4            ; TODO: print value according to BASE
     ldx XSAVE               ; Restore pstack pointer
-    jmp next
+    rts
 
 W9997:
 FORTH_WORD "noop"           ; ------------------------------------------------
@@ -217,6 +237,7 @@ word_out:
     beq interpret           ; Yes, keep processing more words
     jmp line_out            ; Process line
 line_error:
+    inc PNTR
     cprintln error
     jmp quit
 line_out:
@@ -234,7 +255,7 @@ FORTH_WORD "debug"          ; ------------------------------------------------
 ; move once we have a kernel to move and a memory layout to move it to.
 coin:
     store_w APPAREA,UP      ; UP is PSP base for a single-task Forth
-    ldx #$00                ; X: top of PSP
+    ldx #$00                ; X: Empty PSTACK
 cold:
     ; EMPTY-BUFFERS...      ; TODO: Set up for disk usage
     ; ORIG...               ; TODO: Set up memory
@@ -262,6 +283,7 @@ charin:
     bne charin
     jmp line_error
 word_in:
+    sty WLEN                ; Save length of interpreted word
     sta WEND                ; Save space|CR
     lda #$00
     sta WORD,y              ; Terminate word for -FIND
@@ -274,8 +296,10 @@ find:                       ; TODO: Generalize for tick & interpret
     ldy #$00
     lda (DP),y              ; Load count byte
     and #WLENMSK            ; Remove precedence bit
-    beq find_no_match       ; Zero-length word never matches; end of dictionary
+    beq find_no_more        ; Zero-length word never matches; end of dictionary
     sta COUNT               ; Save length for offset
+    cmp WLEN                ; Check word length to avoid partials matching
+    bne find_no_match       ; Dictionary & intepreted word lengths do NOT match
     tay
 find_test_char:
     lda (DP),y              ; Load next char (working backwards)
