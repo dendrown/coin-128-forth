@@ -50,6 +50,9 @@ W0000:
     .byte $00               ; VOCABULARY: start token (end of reverse search)
     .word $0000
 
+FORTH_WORD "ok"             ; ------------------------------------------------
+    jmp next                ; OK ( -- )
+
 FORTH_WORD ".s"             ; ------------------------------------------------
 dot_s:                      ; .S (_ -- _)
     stx W                   ; We need XSAVE for stack/print exchange, so use W
@@ -132,11 +135,24 @@ swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
     jmp put
 
 FORTH_WORD "dup"            ; ------------------------------------------------
-dup:                        ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
-    lda PSTACK,x
+dup:                        ; DUP (n -- n n)
+    lda PSTACK,x            ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
     pha
     lda PSTACK+1,x
     jmp push
+
+FORTH_WORD "c!"             ; ------------------------------------------------
+c_store:                    ; c! (b a -- )
+    lda PSTACK,X            ; Lo byte of target address
+    sta W
+    inx
+    lda PSTACK,X            ; Hi byte of target address
+    sta W+1
+    inx
+    lda PSTACK,X            ; Lo byte value at TOS
+    ldy #$00
+    sta (W),Y
+    jmp drop                ; Pop byte value off PSTACK
 
 FORTH_WORD "constant"       ; ------------------------------------------------
 ;   .word docol
@@ -188,10 +204,17 @@ tib:
     .word TIBX
 
 FORTH_WORD "1+"             ; ------------------------------------------------
-one_plus:
+one_plus:                   ; 1+ (n -- n+1)
     jmp enter
     .word one
     .word plus
+    .word exit
+
+FORTH_WORD "1-"             ; ------------------------------------------------
+one_minus:                  ; 1- (n -- n-1)
+    jmp enter
+    .word one
+    .word minus
     .word exit
 
 FORTH_WORD "rot"            ; ------------------------------------------------
@@ -215,12 +238,12 @@ number:                     ; NUMBER (a -- n)
 number_hex2bin:
     ldy number_buff         ; Count of bytes to convert
 number_hex2bin_loop:
-    lda number_buff-1,Y     ; Load zapped-ASCII hi nybble
+    lda number_buff-1,Y     ; Load stripped-ASCII hi nybble
     asl                     ; Shift into high nybble of A
     asl
     asl
     asl
-    clc                     ; Add in zapped-ASCII lo nybble
+    clc                     ; Add in stripped-ASCII lo nybble
     adc number_buff,Y
     sta PSTACK,X
     dey
@@ -268,6 +291,7 @@ word_out:
     beq interpret           ; Yes, keep processing more words
     jmp line_out            ; Process line
 line_error:
+    inc PNTR
     inc PNTR
     cprintln error
     jmp quit
@@ -366,7 +390,17 @@ find_number:
     ldy WLEN                ; Skip NUMBER checking for text ptr on PSTACK
 find_number_loop:           ; FIXME: Break-ee version requires 4 hex digits
     lda WORD-1,Y            ; Compensate for length byte at copy destination
-    and #$0F
+    cmp #'0'                ; Bad ASCII digit < 0 ?
+    bcc find_nothing
+    cmp #'f'+1              ; Bad ASCII digit > F ?
+    bcs find_nothing
+    cmp #'9'+1              ; Good ASCII digit <= 9 ?
+    bcc find_number_strip
+    cmp #'a'                ; Bad  ASCII digit < A ?
+    bcc find_nothing
+    adc #$08                ; Good ASCII digit A..F: add 8 + carry
+find_number_strip:
+    and #$0F                ; Strip off high nybble of ASCII
     sta number_buff,Y
     dey
     bne find_number_loop
