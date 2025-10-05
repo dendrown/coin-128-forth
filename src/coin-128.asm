@@ -203,6 +203,37 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     .word swap
     .word exit
 
+FORTH_WORD "number"         ; ------------------------------------------------
+number:                     ; NUMBER (a -- n)
+    clc                     ; Increment text pointer as we store it in INPPTR
+    lda PSTACK,X
+    adc #01
+    sta INPPTR              ; Lo byte of text pointer
+    lda PSTACK+1,X
+    adc #00
+    sta INPPTR+1            ; Hi byte of text pointer
+number_hex2bin:
+    ldy number_buff         ; Count of bytes to convert
+number_hex2bin_loop:
+    lda number_buff-1,Y     ; Load zapped-ASCII hi nybble
+    asl                     ; Shift into high nybble of A
+    asl
+    asl
+    asl
+    clc                     ; Add in zapped-ASCII lo nybble
+    adc number_buff,Y
+    sta PSTACK,X
+    dey
+    dey
+    beq number_done
+    inx                     ; Half-un-push PSP for hi nybble
+    jmp number_hex2bin_loop
+number_done:
+    dex                     ; Half-push PSP so number is on top of PSTACK
+    jmp next
+number_buff:
+    .byte $04, $00, $00, $00, $00
+
 FORTH_WORD "."              ; ------------------------------------------------
 dot:                        ; TODO: Check for empty stack!
     jsr dot_sub
@@ -296,7 +327,7 @@ find:                       ; TODO: Generalize for tick & interpret
     ldy #$00
     lda (DP),y              ; Load count byte
     and #WLENMSK            ; Remove precedence bit
-    beq find_no_more        ; Zero-length word never matches; end of dictionary
+    beq find_number         ; Zero-length word never matches; end of dictionary
     sta COUNT               ; Save length for offset
     cmp WLEN                ; Check word length to avoid partials matching
     bne find_no_match       ; Dictionary & intepreted word lengths do NOT match
@@ -313,7 +344,7 @@ find_no_match:
     iny                     ; Offset = count byte + word length
     iny                     ; Start with hi-byte
     lda (DP),y              ; Only check hi-byte (no ZP dictionary)
-    beq find_no_more        ; TODO: flag NOT-FOUND error
+    beq find_number
     pha                     ; Note hi-byte of next word
     dey
     lda (DP),y              ; Grab lo-byte of next word
@@ -331,7 +362,18 @@ find_match:
     adc #$00                ; Handle carry for 16-bit + 8-bit addition
     sta W+1
     jmp (W)
-find_no_more:
+find_number:
+    ldy WLEN                ; Skip NUMBER checking for text ptr on PSTACK
+find_number_loop:           ; FIXME: Break-ee version requires 4 hex digits
+    lda WORD-1,Y            ; Compensate for length byte at copy destination
+    and #$0F
+    sta number_buff,Y
+    dey
+    bne find_number_loop
+    dex                     ; FIXME: Making room on PSTACK will backfire
+    dex
+    jmp number_hex2bin
+find_nothing:
     jmp line_error          ; TODO: proper linkage into FORTH loop
 
 
