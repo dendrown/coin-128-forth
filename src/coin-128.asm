@@ -141,18 +141,30 @@ dup:                        ; DUP (n -- n n)
     lda PSTACK+1,x
     jmp push
 
-FORTH_WORD "c!"             ; ------------------------------------------------
-c_store:                    ; c! (b a -- )
+FORTH_WORD "!"              ; ------------------------------------------------
+store:                      ; ! (n a -- )
+    jsr pop_addr_w          ; Use W as target address pointer
+    lda PSTACK+1,X          ; Hi byte of value at TOS
+    ldy #$01
+    sta (W),Y
+store_lo_iw:
+    lda PSTACK,X            ; Lo byte of value at TOS
+    ldy #$00
+    sta (W),Y
+    jmp drop                ; Pop lo byte of value off PSTACK
+pop_addr_w:
     lda PSTACK,X            ; Lo byte of target address
     sta W
     inx
     lda PSTACK,X            ; Hi byte of target address
     sta W+1
     inx
-    lda PSTACK,X            ; Lo byte value at TOS
-    ldy #$00
-    sta (W),Y
-    jmp drop                ; Pop byte value off PSTACK
+    rts
+
+FORTH_WORD "c!"             ; ------------------------------------------------
+c_store:                    ; c! (b a -- )
+    jsr pop_addr_w          ; Use W as target address pointer
+    jmp store_lo_iw
 
 FORTH_WORD "constant"       ; ------------------------------------------------
 ;   .word docol
