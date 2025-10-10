@@ -53,6 +53,16 @@ W0000:
 FORTH_WORD "ok"             ; ------------------------------------------------
     jmp next                ; OK ( -- )
 
+FORTH_WORD "execute"        ; ------------------------------------------------
+execute:                    ; EXECUTE (a -- )
+    lda PSTACK,X            ; Lo byte of CFA
+    sta W
+    lda PSTACK+1,X          ; Hi byte of CFA
+    sta W+1
+    inx                     ; Pop PSTACK
+    inx
+    jmp (W)
+
 FORTH_WORD ".s"             ; ------------------------------------------------
 dot_s:                      ; .S (_ -- _)
     stx W                   ; We need XSAVE for stack/print exchange, so use W
@@ -160,7 +170,7 @@ pop_addr_w:
     rts
 
 FORTH_WORD "c@"             ; ------------------------------------------------
-c_fetch:                    ; c@ (a -- b)
+c_fetch:                    ; C@ (a -- b)
     jsr pop_addr_w          ; Use W as target address pointer
     ldy #$00                ; Load lo byte
     lda (W),Y
@@ -181,7 +191,7 @@ store_lo_iw:
     jmp drop                ; Pop lo byte of value off PSTACK
 
 FORTH_WORD "c!"             ; ------------------------------------------------
-c_store:                    ; c! (b a -- )
+c_store:                    ; C! (b a -- )
     jsr pop_addr_w          ; Use W as target address pointer
     jmp store_lo_iw
 
@@ -215,24 +225,29 @@ douse:
     jmp push
 
 FORTH_WORD "0"              ; ------------------------------------------------
-zero:                       ; 0 ( -- 0)
+zero:                       ; 0 ( -- 0000)
     jmp const
     .word 0
 
 FORTH_WORD "1"              ; ------------------------------------------------
-one:                        ; 1 ( -- 1)
+one:                        ; 1 ( -- 0001)
     jmp const
     .word 1
 
 FORTH_WORD "2"              ; ------------------------------------------------
-two:                        ; 2 ( -- 2)
+two:                        ; 2 ( -- 0002)
     jmp const
     .word 2
 
 FORTH_WORD "3"              ; ------------------------------------------------
-three:                      ; 3 ( -- 3)
+three:                      ; 3 ( -- 0003)
     jmp const
     .word 3
+
+FORTH_WORD "bl"             ; ------------------------------------------------
+bl:                         ; BL ( -- ' ')
+    jmp const
+    .word ' '
 
 FORTH_WORD "tib"            ; ------------------------------------------------
 tib:                        ; tib ( -- a)
@@ -261,6 +276,39 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     .word r_from
     .word swap
     .word exit
+
+FORTH_WORD "word"           ; ------------------------------------------------
+word:                       ; WORD (c -- a)
+    lda PSTACK,X            ; Use W to hold word separator
+    sta W
+    ldy #$00
+word_start:
+    jsr JBASIN              ; Skip any preliminary delimiters
+    cmp W
+    beq word_start
+word_char:
+    cmp #C_RETURN           ; Got a char, is it the end of the line?
+    beq word_done
+    sta WORD+1,y            ; Store the char, skipping the count byte
+    cmp W                   ; Was the char our delimiter?
+    beq word_done
+    iny
+    cpy #MAXWORD+1          ; Past single-word buffer? (allowing separator)
+    bcs word_error
+    jsr JBASIN              ; Get next char from current input file
+    jmp word_char
+word_done:
+    sty WORD                ; Count byte at beginning of word buffer
+    lda #<(WORD)            ; Replace separator with WORD pointer on PSTACK
+    sta PSTACK,X
+    lda #>(WORD)            ; Hi byte replaced in current PSTACK frame
+    sta PSTACK+1,X
+    jmp next                ; End of good path
+word_error:
+    inc PNTR
+    inc PNTR
+    cprintln error
+    jmp quit
 
 FORTH_WORD "number"         ; ------------------------------------------------
 number:                     ; NUMBER (a -- n)
@@ -326,11 +374,6 @@ word_out:
     cmp #C_SPACE            ; More before printing result line?
     beq interpret           ; Yes, keep processing more words
     jmp line_out            ; Process line
-line_error:
-    inc PNTR
-    inc PNTR
-    cprintln error
-    jmp quit
 line_out:
     inc PNTR
     cprint ok
@@ -370,9 +413,9 @@ charin:
     beq word_in
     sta WORD,y
     iny                     ; Prep for next character
-    cpy MAXWORD+1           ; Past single-word buffer?
+    cpy #MAXWORD+1          ; Past single-word buffer?
     bne charin
-    jmp line_error
+    jmp word_error
 word_in:
     sty WLEN                ; Save length of interpreted word
     sta WEND                ; Save space|CR
@@ -444,7 +487,7 @@ find_number_strip:
     dex
     jmp number_hex2bin
 find_nothing:
-    jmp line_error          ; TODO: proper linkage into FORTH loop
+    jmp word_error          ; TODO: proper linkage into FORTH loop
 
 
 enter_ml:

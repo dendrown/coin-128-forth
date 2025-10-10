@@ -9,6 +9,7 @@ FREE41  := $41              ; 42:41                     (BASIC DATLIN)
 FREE43  := $41              ; 44:43                     (BASIC DATPTR)
 WORD    := $63              ; 63-70 Curr word: 14 chars (FAC1:FACSGN:SGNFLAG)
                             ;                           (FAC2:ARGSGN:ARIFLAG)
+                            ;       [CNT|12-CHARS|SPC]
 UP      := $74              ; 75:74 Forth User Pointer  (BASIC AUTINC)
 WEND    := $80              ; Word END character        (BASIC POINT)
 WLEN    := $82              ; Interpreted word length   (BASIC OLDSTK)
@@ -20,7 +21,7 @@ TIBX    := $0B00            ; Initial Terminal Input Buffer
 PSTACK  := APPAREA          ; Parameter stack page
 
 
-MAXWORD = 13                ; Maximum WORD length (note ZP buffer) : TODO: 32
+MAXWORD = 12                ; Maximum WORD length (before separator) : TODO: 32
 WORDOFF = 2                 ; Offset to WORD in dictionary entry
 WLENMSK = $7F               ; Word length bit mask
 WPRCBIT = $10               ; Word precedence bit to indicate IMMEDIATE word
