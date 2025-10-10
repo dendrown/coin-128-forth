@@ -141,6 +141,33 @@ dup:                        ; DUP (n -- n n)
     lda PSTACK+1,x
     jmp push
 
+FORTH_WORD "@"              ; ------------------------------------------------
+fetch:                      ; @ (a -- n)
+    jsr pop_addr_w          ; Use W as target address pointer
+    ldy #$00                ; Lo byte goes on the RSTACK
+    lda (W),Y
+    pha
+    iny                     ; Hi byte in accumulator
+    lda (W),Y
+    jmp push
+pop_addr_w:
+    lda PSTACK,X            ; Lo byte of target address
+    sta W
+    inx
+    lda PSTACK,X            ; Hi byte of target address
+    sta W+1
+    inx
+    rts
+
+FORTH_WORD "c@"             ; ------------------------------------------------
+c_fetch:                    ; c@ (a -- b)
+    jsr pop_addr_w          ; Use W as target address pointer
+    ldy #$00                ; Load lo byte
+    lda (W),Y
+    pha
+    tya                     ; Hi byte is always 00
+    jmp push
+
 FORTH_WORD "!"              ; ------------------------------------------------
 store:                      ; ! (n a -- )
     jsr pop_addr_w          ; Use W as target address pointer
@@ -152,14 +179,6 @@ store_lo_iw:
     ldy #$00
     sta (W),Y
     jmp drop                ; Pop lo byte of value off PSTACK
-pop_addr_w:
-    lda PSTACK,X            ; Lo byte of target address
-    sta W
-    inx
-    lda PSTACK,X            ; Hi byte of target address
-    sta W+1
-    inx
-    rts
 
 FORTH_WORD "c!"             ; ------------------------------------------------
 c_store:                    ; c! (b a -- )
@@ -195,23 +214,28 @@ douse:
     adc UP+1
     jmp push
 
+FORTH_WORD "0"              ; ------------------------------------------------
+zero:                       ; 0 ( -- 0)
+    jmp const
+    .word 0
+
 FORTH_WORD "1"              ; ------------------------------------------------
-one:
+one:                        ; 1 ( -- 1)
     jmp const
     .word 1
 
 FORTH_WORD "2"              ; ------------------------------------------------
-two:
+two:                        ; 2 ( -- 2)
     jmp const
     .word 2
 
 FORTH_WORD "3"              ; ------------------------------------------------
-three:
+three:                      ; 3 ( -- 3)
     jmp const
     .word 3
 
 FORTH_WORD "tib"            ; ------------------------------------------------
-tib:
+tib:                        ; tib ( -- a)
     jmp const
     .word TIBX
 
