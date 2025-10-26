@@ -13,6 +13,16 @@
 .define APP_VERSION "0.1"
 
 
+.macro push_word addr
+    dex
+    lda #>(addr)
+    sta PSTACK,X
+    dex
+    lda #<(addr)
+    sta PSTACK,X
+.endmacro
+
+
 ;-----------------------------------------------------------------------------
 .org $1C01                  ; ML starts after quick BASIC loader
 .segment "STARTUP"
@@ -43,7 +53,7 @@ done:
 
 ;-----------------------------------------------------------------------------
 ; Forth vocabulary:
-; Word order corresponds to fig6502.
+; Word tags "L9999" refer to fig6502.
 ; @ref https://github.com/jefftranter/6502/blob/master/asm/fig-forth/fig6502.asm
 orig:
 W0000:
@@ -52,16 +62,6 @@ W0000:
 
 FORTH_WORD "ok"             ; ------------------------------------------------
     jmp next                ; OK ( -- )
-
-FORTH_WORD "execute"        ; ------------------------------------------------
-execute:                    ; EXECUTE (a -- )
-    lda PSTACK,X            ; Lo byte of CFA
-    sta W
-    lda PSTACK+1,X          ; Hi byte of CFA
-    sta W+1
-    inx                     ; Pop PSTACK
-    inx
-    jmp (W)
 
 FORTH_WORD ".s"             ; ------------------------------------------------
 dot_s:                      ; .S (_ -- _)
@@ -79,6 +79,71 @@ dot_s_loop:
 dot_s_done:
     ldx W                   ; Restore real PSP (X) value
     jmp next
+
+FORTH_WORD "execute"        ; --------------------------------------------L75-
+execute:                    ; EXECUTE (a -- )
+    lda PSTACK,X            ; Lo byte of CFA
+    sta W
+    lda PSTACK+1,X          ; Hi byte of CFA
+    sta W+1
+    inx                     ; Pop PSTACK
+    inx
+    jmp (W)
+.macro exec_word addr
+    push_word addr
+    jmp execute
+.endmacro
+
+
+FORTH_WORD "(find)"         ; -------------------------------------------L243-
+p_find_p:                   ; (FIND) (a -- a)       \ for a dictionary word
+                            ;        (a -- a a)     \ for a number
+    store_w W9999,DP        ; Initialize start of dictionary
+                            ; TODO: Check: if a != W => CMOVE to WORD
+p_find_p_word:
+    ldy #$00
+    lda (DP),Y              ; Load count byte
+    and #WLENMSK            ; Remove precedence bit
+    beq p_find_p_number     ; Zero-length word never matches; end of dictionary
+    sta COUNT               ; Save length for offset
+    cmp WORD                ; Check word length to avoid partials matching
+    bne p_find_p_nope       ; Dictionary & intepreted word lengths do NOT match
+    tay                     ; Y <- char count for word candidate
+p_find_p_char:
+    lda (DP),Y              ; Load next char (working backwards)
+    cmp WORD,Y              ; Test char against WORD buffer
+    bne p_find_p_nope
+    dey
+    beq p_find_p_match      ; No more chars to test (0th is the count)
+    jmp p_find_p_char
+p_find_p_nope:
+    ldy COUNT               ; Get offset to link to previous word
+    iny                     ; Offset = count byte + word length
+    iny                     ; Start with hi-byte
+    lda (DP),y              ; Only check hi-byte (no ZP dictionary)
+    beq p_find_p_number
+    pha                     ; Note hi-byte of next word
+    dey
+    lda (DP),y              ; Grab lo-byte of next word
+    sta DP                  ; Store it for previous word
+    pla                     ; Pull hi-byte again
+    sta DP+1                ; Store it for previous word
+    jmp p_find_p_word
+p_find_p_match:
+    clc
+    lda COUNT
+    adc #WORDOFF+1          ; Word char count + length + link will never carry
+    adc DP                  ; Calc lo byte offset to dictionary word CFA
+    pha
+    lda #$00                ; Calc hi byte of dictionary word CFA
+    adc DP+1
+    jmp put                 ; PSTACK, in place: word-string => word-exec
+p_find_p_number:
+    lda #<(number)
+    pha
+    lda #>(number)
+    jmp push
+
 
 FORTH_WORD ">r"             ; ------------------------------------------------
 to_r:                       ; >R (n -- )
@@ -279,24 +344,26 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
 
 FORTH_WORD "word"           ; ------------------------------------------------
 word:                       ; WORD (c -- a)
-    lda PSTACK,X            ; Use W to hold word separator
-    sta W
+    lda PSTACK,X            ; Store word separator
+    sta WEND                ; Save space|other
     ldy #$00
 word_start:
     jsr JBASIN              ; Skip any preliminary delimiters
-    cmp W
+    cmp WEND
     beq word_start
 word_char:
     cmp #C_RETURN           ; Got a char, is it the end of the line?
-    beq word_done
+    beq word_line_done
     sta WORD+1,y            ; Store the char, skipping the count byte
-    cmp W                   ; Was the char our delimiter?
+    cmp WEND                ; Was the char our delimiter?
     beq word_done
     iny
     cpy #MAXWORD+1          ; Past single-word buffer? (allowing separator)
     bcs word_error
     jsr JBASIN              ; Get next char from current input file
     jmp word_char
+word_line_done:
+    sta WEND                ; Replace space|other with RETURN
 word_done:
     sty WORD                ; Count byte at beginning of word buffer
     lda #<(WORD)            ; Replace separator with WORD pointer on PSTACK
@@ -310,7 +377,7 @@ word_error:
     cprintln error
     jmp quit
 
-FORTH_WORD "number"         ; ------------------------------------------------
+FORTH_WORD "number"         ; ------------------------------------------L2007-
 number:                     ; NUMBER (a -- n)
     clc                     ; Increment text pointer as we store it in INPPTR
     lda PSTACK,X
@@ -319,6 +386,24 @@ number:                     ; NUMBER (a -- n)
     lda PSTACK+1,X
     adc #00
     sta INPPTR+1            ; Hi byte of text pointer
+number_check:
+    ldy INPPTR              ; Number of chars in number string
+number_check_loop:
+    lda INPPTR-1,Y          ; Compensate for length byte at copy destination
+    cmp #'0'                ; Bad ASCII digit < 0 ?
+    bcc word_error
+    cmp #'f'+1              ; Bad ASCII digit > F ?
+    bcs word_error
+    cmp #'9'+1              ; Good ASCII digit <= 9 ?
+    bcc number_strip
+    cmp #'a'                ; Bad  ASCII digit < A ?
+    bcc word_error
+    adc #$08                ; Good ASCII digit A..F: add 8 + carry
+number_strip:
+    and #$0F                ; Strip off high nybble of ASCII
+    sta number_buff,Y
+    dey
+    bne number_check_loop
 number_hex2bin:
     ldy number_buff         ; Count of bytes to convert
 number_hex2bin_loop:
@@ -341,7 +426,32 @@ number_done:
 number_buff:
     .byte $04, $00, $00, $00, $00
 
-FORTH_WORD "."              ; ------------------------------------------------
+FORTH_WORD "interpret"      ; ------------------------------------------L2269-
+interpret:                  ; INTERPRET ( -- )
+    jmp enter
+    .word bl
+    .word word
+    .word p_find_p
+    .word execute
+    .word word_out
+    .word exit
+
+FORTH_WORD "quit"           ; ------------------------------------------L2381-
+;quit_debug:                 ; QUIT ( -- )
+;    .word $0000
+quit:                       ; QUIT ( -- )
+   ;stx XSAVE
+   ;ldx #$FF                ; S: Reset RSTACK
+   ;txs
+   ;ldx XSAVE
+   ;lda #$00                ; And clear STATE (interpreting)
+   ;sta STATE
+                            ; TODO: 0 BLK !
+    jmp enter
+    .word interpret
+    .word exit
+
+FORTH_WORD "."              ; ------------------------------------------L3562-
 dot:                        ; TODO: Check for empty stack!
     jsr dot_sub
     jmp next
@@ -360,29 +470,33 @@ dot_sub:                    ; Subroutine called from . and .S
     ldx XSAVE               ; Restore pstack pointer
     rts
 
-W9997:
+W9996:
 FORTH_WORD "noop"           ; ------------------------------------------------
 noop:                       ; Debug word that does nothing
     jmp enter
     .word exit
 
+W9997:
+    FORTH_WORD "break"      ; ------------------------------------------------
+break:                      ; Debug word to go to C128 monitor
+    brk
+
 W9998:
 FORTH_WORD "~out"           ; ------------------------------------------------
 word_out:
-    .word *+2               ; FIXME: FAKE (second) WORD LINK
     lda WEND                ; Get the last space|CR
-    cmp #C_SPACE            ; More before printing result line?
-    beq interpret           ; Yes, keep processing more words
-    jmp line_out            ; Process line
-line_out:
+    cmp #C_RETURN           ; Done with word on this line?
+    beq word_out_line       ; Process line
+    jmp next                ; No, keep processing more words
+word_out_line:
     inc PNTR
     cprint ok
     jsr CROUT
-    jmp interpret           ; TODO: Handle interpretive/compile states
+    jmp next
 
 W9999:
 FORTH_WORD "debug"          ; ------------------------------------------------
-    jmp bye
+    rts                     ; Return to BASIC
 
 ;-----------------------------------------------------------------------------
 ; TODO: we are hanging out behind the BASIC stub for now. The kernel will
@@ -394,102 +508,21 @@ cold:
     ; EMPTY-BUFFERS...      ; TODO: Set up for disk usage
     ; ORIG...               ; TODO: Set up memory
     ; FORTH...              ; TODO: Set FORTH vocabulary linkage
+    jmp abort_loop          ; TODO: COLD & ABORT should be proper words
 abort:
     ; FORTH...              ; TODO: Select FORTH trunk vocabulary
     ; DEFINITIONS...        ; TODO: Set CURRENT to CONTEXT
-quit:
-    lda #$00
-    sta STATE
-                            ; TODO: 0 BLK !
-interpret:
-    store_w W9999,DP        ; Initialize start of dictionary
-    store_w word_out,IP     ; TODO: Forthify this hack!
-    ldy #$00
-charin:
-    jsr JBASIN
-    cmp #C_SPACE
-    beq word_in
-    cmp #C_RETURN
-    beq word_in
-    sta WORD,y
-    iny                     ; Prep for next character
-    cpy #MAXWORD+1          ; Past single-word buffer?
-    bne charin
-    jmp word_error
-word_in:
-    sty WLEN                ; Save length of interpreted word
-    sta WEND                ; Save space|CR
-    lda #$00
-    sta WORD,y              ; Terminate word for -FIND
-    jmp find
-bye:
-    rts
+    .word abort             ; TODO: ABORT should be a proper word
+abort_loop:
+    lda #<(abort)           ; Re-queue ABORT as hacked previous "word"
+    sta IP
+    lda #>(abort)
+    sta IP+1
+    exec_word quit
+    jmp abort_loop
+
 
 ;-----------------------------------------------------------------------------
-find:                       ; TODO: Generalize for tick & interpret
-    ldy #$00
-    lda (DP),y              ; Load count byte
-    and #WLENMSK            ; Remove precedence bit
-    beq find_number         ; Zero-length word never matches; end of dictionary
-    sta COUNT               ; Save length for offset
-    cmp WLEN                ; Check word length to avoid partials matching
-    bne find_no_match       ; Dictionary & intepreted word lengths do NOT match
-    tay
-find_test_char:
-    lda (DP),y              ; Load next char (working backwards)
-    cmp WORD-1,y            ; Back up one to account for count byte
-    bne find_no_match
-    dey
-    beq find_match
-    jmp find_test_char
-find_no_match:
-    ldy COUNT               ; Get offset to link to previous word
-    iny                     ; Offset = count byte + word length
-    iny                     ; Start with hi-byte
-    lda (DP),y              ; Only check hi-byte (no ZP dictionary)
-    beq find_number
-    pha                     ; Note hi-byte of next word
-    dey
-    lda (DP),y              ; Grab lo-byte of next word
-    sta DP                  ; Store it for previous word
-    pla                     ; Pull hi-byte again
-    sta DP+1                ; Store it for previous word
-    jmp find
-find_match:
-    clc
-    lda COUNT
-    adc #WORDOFF+1          ; Word char count + length + link will never carry
-    adc DP                  ; Calc lo byte offset to dictionary code
-    sta W
-    lda DP+1
-    adc #$00                ; Handle carry for 16-bit + 8-bit addition
-    sta W+1
-    jmp (W)
-find_number:
-    ldy WLEN                ; Skip NUMBER checking for text ptr on PSTACK
-find_number_loop:           ; FIXME: Break-ee version requires 4 hex digits
-    lda WORD-1,Y            ; Compensate for length byte at copy destination
-    cmp #'0'                ; Bad ASCII digit < 0 ?
-    bcc find_nothing
-    cmp #'f'+1              ; Bad ASCII digit > F ?
-    bcs find_nothing
-    cmp #'9'+1              ; Good ASCII digit <= 9 ?
-    bcc find_number_strip
-    cmp #'a'                ; Bad  ASCII digit < A ?
-    bcc find_nothing
-    adc #$08                ; Good ASCII digit A..F: add 8 + carry
-find_number_strip:
-    and #$0F                ; Strip off high nybble of ASCII
-    sta number_buff,Y
-    dey
-    bne find_number_loop
-    dex                     ; FIXME: Making room on PSTACK will backfire
-    dex
-    jmp number_hex2bin
-find_nothing:
-    jmp word_error          ; TODO: proper linkage into FORTH loop
-
-
 enter_ml:
     store_w word_out,IP     ; TODO: ENTER_ML is TEMPORARY scaffolding
     rts
@@ -497,12 +530,9 @@ enter_ml:
 ; ENTER is common across all colon definitions
 ;
 enter:                      ; Common entry for all colon defs
-    clc                     ; Push IP++ for where we came from on the RSTACK
     lda IP
-    adc #$02                ; Increment pointer to next word as we stack it
     pha                     ; Stack BACKWARDS [__:LO] to combine ADD/PUSH
     lda IP+1
-    adc #$00
     pha                     ; Stack BACKWARDS [HI:lo]
     clc                     ; Set IP <- first WORD address
     lda W                   ; W points to JMP ENTER in the current word
@@ -520,7 +550,13 @@ exit:                       ; Terminate forth word thread
     sta IP+1                ; Remove from RSTACK BACKWARDS [HI:lo] (see: ENTER)
     pla
     sta IP                  ; Remove from RSTACK BACKWARDS [__:LO]
-    jmp (IP)
+    ldy #$00                ; W <- (IP)
+    lda (IP),Y
+    sta W
+    iny
+    lda (IP),Y
+    sta W+1
+    jmp (W)                 ; Execute DTC
 ;
 ; PUSH/PUT: parameter stack operations
 ;

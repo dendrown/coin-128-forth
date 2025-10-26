@@ -5,8 +5,8 @@
 ; Zero-page registers       ; LO:HI 16-bit pointers
 STATE   := $3f              ; Forth main loop state     (<FINDPNT)
 DP      := $40              ; 41:40 Dictionary pointer  (>FINDPNT)
-FREE41  := $41              ; 42:41                     (BASIC DATLIN)
-FREE43  := $41              ; 44:43                     (BASIC DATPTR)
+FREE42  := $42              ; 42                        (BASIC DATLIN)
+FREE43  := $43              ; 44:43                     (BASIC DATPTR)
 WORD    := $63              ; 63-70 Curr word: 14 chars (FAC1:FACSGN:SGNFLAG)
                             ;                           (FAC2:ARGSGN:ARIFLAG)
                             ;       [CNT|12-CHARS|SPC]
