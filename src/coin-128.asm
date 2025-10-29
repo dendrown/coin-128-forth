@@ -120,11 +120,11 @@ p_find_p_nope:
     ldy COUNT               ; Get offset to link to previous word
     iny                     ; Offset = count byte + word length
     iny                     ; Start with hi-byte
-    lda (DP),y              ; Only check hi-byte (no ZP dictionary)
+    lda (DP),Y              ; Only check hi-byte (no ZP dictionary)
     beq p_find_p_number
     pha                     ; Note hi-byte of next word
     dey
-    lda (DP),y              ; Grab lo-byte of next word
+    lda (DP),Y              ; Grab lo-byte of next word
     sta DP                  ; Store it for previous word
     pla                     ; Pull hi-byte again
     sta DP+1                ; Store it for previous word
@@ -147,9 +147,9 @@ p_find_p_number:
 
 FORTH_WORD ">r"             ; ------------------------------------------------
 to_r:                       ; >R (n -- )
-    lda PSTACK+1,x          ; Transfer HI byte (BACKWARDS on RSTACK)
+    lda PSTACK+1,X          ; Transfer HI byte (BACKWARDS on RSTACK)
     pha
-    lda PSTACK,x            ; Transfer LO byte (BACKWARDS on RESTACK)
+    lda PSTACK,X            ; Transfer LO byte (BACKWARDS on RESTACK)
     pha
     jmp pop
 
@@ -161,30 +161,30 @@ r_from:                     ; >R ( -- n)
 FORTH_WORD "+"              ; ------------------------------------------------
 plus:
     clc
-    lda PSTACK,x            ; Lo byte of TOP
-    adc PSTACK+2,x          ; Lo byte of TOP-1
-    sta PSTACK+2,x
-    lda PSTACK+1,x          ; Hi byte of TOP
-    adc PSTACK+3,x          ; Hi byte of TOP-1
-    sta PSTACK+3,x
+    lda PSTACK,X            ; Lo byte of TOP
+    adc PSTACK+2,X          ; Lo byte of TOP-1
+    sta PSTACK+2,X
+    lda PSTACK+1,X          ; Hi byte of TOP
+    adc PSTACK+3,X          ; Hi byte of TOP-1
+    sta PSTACK+3,X
     jmp pop                 ; Result in TOP-1...drop TOP
 
 FORTH_WORD "-"              ; ------------------------------------------------
 minus:
     sec
-    lda PSTACK+2,x          ; Lo byte of TOP-1
-    sbc PSTACK,x            ; Lo byte of TOP
-    sta PSTACK+2,x
-    lda PSTACK+3,x          ; Hi byte of TOP-1
-    sbc PSTACK+1,x          ; Hi byte of TOP
-    sta PSTACK+3,x
+    lda PSTACK+2,X          ; Lo byte of TOP-1
+    sbc PSTACK,X            ; Lo byte of TOP
+    sta PSTACK+2,X
+    lda PSTACK+3,X          ; Hi byte of TOP-1
+    sbc PSTACK+1,X          ; Hi byte of TOP
+    sta PSTACK+3,X
     jmp pop                 ; Result in TOP-1...drop TOP
 
 FORTH_WORD "over"           ; ------------------------------------------------
 over:                       ; OVER (n1 n2 -- n1 n2 n1)
-    lda PSTACK+2,x
+    lda PSTACK+2,X
     pha
-    lda PSTACK+3,x
+    lda PSTACK+3,X
     jmp push
 
 FORTH_WORD "drop"           ; ------------------------------------------------
@@ -198,22 +198,22 @@ FORTH_WORD "swap"           ; ------------------------------------------------
 swap:                       ; PSTACK [1300..|TOP=0|1|2|3|..13fe:13ff]
                             ; NOTE: a ZP stack would allow us to save ops using
                             ;       ldy/sty instead of pha/pla for byte 3 -> 1.
-    lda PSTACK+2,x          ; PUT prep: 2 -> RSTACK -> 0
+    lda PSTACK+2,X          ; PUT prep: 2 -> RSTACK -> 0
     pha
-    lda PSTACK+3,x          ; PUT prep: 3 -> RSTACK
+    lda PSTACK+3,X          ; PUT prep: 3 -> RSTACK
     pha
-    lda PSTACK,x            ; Move 0 -> 2
-    sta PSTACK+2,x
-    lda PSTACK+1,x          ; Move 1 -> 3
-    sta PSTACK+3,x
+    lda PSTACK,X            ; Move 0 -> 2
+    sta PSTACK+2,X
+    lda PSTACK+1,X          ; Move 1 -> 3
+    sta PSTACK+3,X
     pla                     ; PUT prep:      RSTACK -> 1
     jmp put
 
 FORTH_WORD "dup"            ; ------------------------------------------------
 dup:                        ; DUP (n -- n n)
-    lda PSTACK,x            ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
+    lda PSTACK,X            ; PSTACK [1300..|TOP=0|1|......13fe:13ff]
     pha
-    lda PSTACK+1,x
+    lda PSTACK+1,X
     jmp push
 
 FORTH_WORD "@"              ; ------------------------------------------------
@@ -268,10 +268,10 @@ FORTH_WORD "constant"       ; ------------------------------------------------
 ;   .word semis
 const:
     ldy #$03                ; IP is at code past link, offset by `jmp const`
-    lda (W),y
+    lda (W),Y
     pha
     iny
-    lda (W),y
+    lda (W),Y
     jmp push
 
 FORTH_WORD "user"           ; ------------------------------------------------
@@ -282,7 +282,7 @@ douse:
     jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
     ldy #$02
     clc
-    lda (W),y
+    lda (W),Y
     adc UP
     pha
     lda #$00
@@ -354,7 +354,7 @@ word_start:
 word_char:
     cmp #C_RETURN           ; Got a char, is it the end of the line?
     beq word_line_done
-    sta WORD+1,y            ; Store the char, skipping the count byte
+    sta WORD+1,Y            ; Store the char, skipping the count byte
     cmp WEND                ; Was the char our delimiter?
     beq word_done
     iny
@@ -379,17 +379,16 @@ word_error:
 
 FORTH_WORD "number"         ; ------------------------------------------L2007-
 number:                     ; NUMBER (a -- n)
-    clc                     ; Increment text pointer as we store it in INPPTR
-    lda PSTACK,X
-    adc #01
+    lda PSTACK,X            ; Store pointer to the number candidate in INPPTR
     sta INPPTR              ; Lo byte of text pointer
     lda PSTACK+1,X
-    adc #00
     sta INPPTR+1            ; Hi byte of text pointer
 number_check:
-    ldy INPPTR              ; Number of chars in number string
+    ldy #$00
+    lda (INPPTR),Y          ; Grab number of chars in number string
+    tay                     ; Use it as our offset, moving backwards
 number_check_loop:
-    lda INPPTR-1,Y          ; Compensate for length byte at copy destination
+    lda (INPPTR),Y          ; Compensate for length byte at copy destination
     cmp #'0'                ; Bad ASCII digit < 0 ?
     bcc word_error
     cmp #'f'+1              ; Bad ASCII digit > F ?
@@ -437,8 +436,6 @@ interpret:                  ; INTERPRET ( -- )
     .word exit
 
 FORTH_WORD "quit"           ; ------------------------------------------L2381-
-;quit_debug:                 ; QUIT ( -- )
-;    .word $0000
 quit:                       ; QUIT ( -- )
    ;stx XSAVE
    ;ldx #$FF                ; S: Reset RSTACK
@@ -452,16 +449,16 @@ quit:                       ; QUIT ( -- )
     .word exit
 
 FORTH_WORD "."              ; ------------------------------------------L3562-
-dot:                        ; TODO: Check for empty stack!
-    jsr dot_sub
+dot:                        ; . (n -- )
+    jsr dot_sub             ; TODO: Check for empty stack!
     jmp next
 dot_sub:                    ; Subroutine called from . and .S
     inc PNTR                ; Give space so we don't overwrite the dot
     inc PNTR
-    lda PSTACK,x            ; Load lo-byte from top pstack cell
+    lda PSTACK,X            ; Load lo-byte from top pstack cell
     tay
     inx
-    lda PSTACK,x            ; Load hi-byte from top pstack cell
+    lda PSTACK,X            ; Load hi-byte from top pstack cell
     inx
     stx XSAVE               ; Save pstack pointer now that value is popped
     tax                     ; X = hi-byte of cell
@@ -572,10 +569,10 @@ put:
 ;
 next:
     ldy #$00                ; Set W <- (IP)
-    lda (IP),y
+    lda (IP),Y
     sta W
     iny
-    lda (IP),y
+    lda (IP),Y
     sta W+1
     clc
     lda IP                  ; Set IP <- next word
