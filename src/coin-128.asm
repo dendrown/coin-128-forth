@@ -44,6 +44,11 @@ main:
     cprintln welcome
     jsr CROUT
     cprintln silliness1
+    tsx                     ; Fix the RSTACK TOP to keep everything so far
+    txa
+    sec
+    sbc #$04                ; Also keep room for our return addr AND one IP
+    sta RRESET              ; Store the RSTACK-RESET cap for (RESET)
     jsr coin
 done:
     jsr CROUT
@@ -59,6 +64,12 @@ orig:
 W0000:
     .byte $00               ; VOCABULARY: start token (end of reverse search)
     .word $0000
+
+FORTH_WORD "bye"            ; ------------------------------------------------
+bye:                        ; ( -- )
+    pla                     ; Pop last IP
+    pla
+    rts                     ; Return to BASIC
 
 FORTH_WORD "ok"             ; ------------------------------------------------
     jmp next                ; OK ( -- )
@@ -147,16 +158,16 @@ p_find_p_number:
 
 FORTH_WORD ">r"             ; ------------------------------------------------
 to_r:                       ; >R (n -- )
-    lda PSTACK+1,X          ; Transfer HI byte (BACKWARDS on RSTACK)
+    lda PSTACK,X            ; Transfer LO byte
     pha
-    lda PSTACK,X            ; Transfer LO byte (BACKWARDS on RESTACK)
+    lda PSTACK+1,X          ; Transfer HI byte
     pha
     jmp pop
 
 FORTH_WORD "r>"             ; ------------------------------------------------
 r_from:                     ; >R ( -- n)
-    pla                     ; Prep LO byte
-    jmp push                ; Push takes HI byte from RSTACK
+    pla                     ; Prep HI byte
+    jmp push                ; Push takes LO byte from RSTACK
 
 FORTH_WORD "+"              ; ------------------------------------------------
 plus:
@@ -375,7 +386,7 @@ word_error:
     inc PNTR
     inc PNTR
     cprintln error
-    jmp quit
+    jmp abort_loop          ; FIXME: Forthify error handling
 
 FORTH_WORD "number"         ; ------------------------------------------L2007-
 number:                     ; NUMBER (a -- n)
@@ -437,16 +448,21 @@ interpret:                  ; INTERPRET ( -- )
 
 FORTH_WORD "quit"           ; ------------------------------------------L2381-
 quit:                       ; QUIT ( -- )
-   ;stx XSAVE
-   ;ldx #$FF                ; S: Reset RSTACK
-   ;txs
-   ;ldx XSAVE
-   ;lda #$00                ; And clear STATE (interpreting)
-   ;sta STATE
                             ; TODO: 0 BLK !
     jmp enter
+    .word p_reset_p
     .word interpret
     .word exit
+
+FORTH_WORD "(reset)"        ; ------------------------------------------------
+p_reset_p:                  ; (RESET) ( -- )
+    stx XSAVE
+    ldx RRESET              ; S: Reset RSTACK, but save original coin JSR/RTS
+    txs
+    ldx XSAVE
+    lda #$00                ; And clear STATE (interpreting)
+    sta STATE
+    jmp next
 
 FORTH_WORD "."              ; ------------------------------------------L3562-
 dot:                        ; . (n -- )
@@ -467,18 +483,18 @@ dot_sub:                    ; Subroutine called from . and .S
     ldx XSAVE               ; Restore pstack pointer
     rts
 
-W9996:
+W9990:
 FORTH_WORD "noop"           ; ------------------------------------------------
 noop:                       ; Debug word that does nothing
     jmp enter
     .word exit
 
-W9997:
+W9995:
     FORTH_WORD "break"      ; ------------------------------------------------
 break:                      ; Debug word to go to C128 monitor
     brk
 
-W9998:
+W9999:
 FORTH_WORD "~out"           ; ------------------------------------------------
 word_out:
     lda WEND                ; Get the last space|CR
@@ -490,10 +506,6 @@ word_out_line:
     cprint ok
     jsr CROUT
     jmp next
-
-W9999:
-FORTH_WORD "debug"          ; ------------------------------------------------
-    rts                     ; Return to BASIC
 
 ;-----------------------------------------------------------------------------
 ; TODO: we are hanging out behind the BASIC stub for now. The kernel will
