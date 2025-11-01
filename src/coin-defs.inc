@@ -3,20 +3,22 @@
 ; vim: set ft=asm_ca65:
 ;-----------------------------------------------------------------------------
 ; Zero-page registers       ; LO:HI 16-bit pointers
-STATE   := $3f              ; Forth main loop state     (<FINDPNT)
-DP      := $40              ; 41:40 Dictionary pointer  (>FINDPNT)
-RRESET  := $42              ; RSTACK reset cap          (BASIC DATLIN)
-FREE43  := $43              ; 44:43                     (BASIC DATPTR)
+STATE   := $3F              ; Forth main loop state     (<FINDPNT)
+DP      := $40              ; 41:40 Dictionary pointer  (>FINDPNT <DATLIN)
+RRESET  := $42              ; RSTACK reset cap          (BASIC >DATLIN)
+C128_43 := $43              ; 44:43                     (BASIC DATPTR)
+FREE47  := $47              ; 48:47                     (BASIC VARNAM)
+
 WORD    := $63              ; 63-70 Curr word: 14 chars (FAC1:FACSGN:SGNFLAG)
-                            ;                           (FAC2:ARGSGN:ARIFLAG)
-                            ;       [CNT|12-CHARS|SPC]
-UP      := $74              ; 75:74 Forth User Pointer  (BASIC AUTINC)
+                            ;       [CNT|12-CHARS|SPC]  (FAC2:ARGSGN:ARIFLAG)
+C128_74 := $74              ; 75:74                     (BASIC AUTINC)
 WEND    := $80              ; Word END character        (BASIC POINT)
 WLEN    := $82              ; Interpreted word length   (BASIC OLDSTK)
 W       := $FA              ; FB:FA Forth Working (W) register
 IP      := $FC              ; FD:FC Forth Interpreter Pointer (IP)
 XSAVE   := $FE              ; Temporary for X register
 
+EMITBUF := BUF              ; EMIT/print buffer         (BASIC/moN input BUF)
 TIBX    := $0B00            ; Initial Terminal Input Buffer
 PSTACK  := APPAREA          ; Parameter stack page
 
@@ -58,7 +60,7 @@ curr_forth_word .set 0      ; Holds the link to the current FORTH_WORD
     ldy #$00
 load_char:
     iny                     ; Text starts at offset 1
-    lda s,y                 ; A = next character
+    lda s,Y                 ; A = next character
     jsr JBSOUT              ; BASIC output(A)
     cpy s                   ; Y == strlen?
     bne load_char
@@ -76,7 +78,7 @@ load_char:
 .local zprint_done
     ldy #$00
 load_char:
-    lda s,y                 ; A = next character
+    lda s,Y                 ; A = next character
     beq done
     jsr JBSOUT              ; BASIC output(A)
     iny
@@ -97,7 +99,7 @@ zprint_done:
 .local done
     ldy #$00
 load_char:
-    lda s,y                 ; A = next character
+    lda s,Y                 ; A = next character
     beq done
     jsr JBSOUT              ; BASIC output(A)
     iny

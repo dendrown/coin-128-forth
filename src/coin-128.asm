@@ -44,6 +44,8 @@ main:
     cprintln welcome
     jsr CROUT
     cprintln silliness1
+    lda #$00
+    sta EMITBUF             ; Initialize EMIT buffer [emptied in (OUT)]
     tsx                     ; Fix the RSTACK TOP to keep everything so far
     txa
     sec
@@ -156,7 +158,16 @@ p_find_p_number:
     jmp push
 
 
-FORTH_WORD ">r"             ; ------------------------------------------------
+FORTH_WORD "emit"           ; -------------------------------------------L337-
+emit:                       ; EMIT (c -- )
+    ldy EMITBUF             ; Count is offset for new char in EMIT buffer
+    lda PSTACK,X            ; Lo byte for ASCII char
+    sta EMITBUF+1,Y
+    iny
+    sty EMITBUF
+    jmp pop
+
+FORTH_WORD ">r"             ; -------------------------------------------L563-
 to_r:                       ; >R (n -- )
     lda PSTACK,X            ; Transfer LO byte
     pha
@@ -164,7 +175,7 @@ to_r:                       ; >R (n -- )
     pha
     jmp pop
 
-FORTH_WORD "r>"             ; ------------------------------------------------
+FORTH_WORD "r>"             ; -------------------------------------------L577-
 r_from:                     ; >R ( -- n)
     pla                     ; Prep HI byte
     jmp push                ; Push takes LO byte from RSTACK
@@ -227,7 +238,7 @@ dup:                        ; DUP (n -- n n)
     lda PSTACK+1,X
     jmp push
 
-FORTH_WORD "@"              ; ------------------------------------------------
+FORTH_WORD "@"              ; -------------------------------------------L773-
 fetch:                      ; @ (a -- n)
     jsr pop_addr_w          ; Use W as target address pointer
     ldy #$00                ; Lo byte goes on the RSTACK
@@ -245,7 +256,7 @@ pop_addr_w:
     inx
     rts
 
-FORTH_WORD "c@"             ; ------------------------------------------------
+FORTH_WORD "c@"             ; -------------------------------------------L787-
 c_fetch:                    ; C@ (a -- b)
     jsr pop_addr_w          ; Use W as target address pointer
     ldy #$00                ; Load lo byte
@@ -254,7 +265,7 @@ c_fetch:                    ; C@ (a -- b)
     tya                     ; Hi byte is always 00
     jmp push
 
-FORTH_WORD "!"              ; ------------------------------------------------
+FORTH_WORD "!"              ; -------------------------------------------L798-
 store:                      ; ! (n a -- )
     jsr pop_addr_w          ; Use W as target address pointer
     lda PSTACK+1,X          ; Hi byte of value at TOS
@@ -266,68 +277,53 @@ store_lo_iw:
     sta (W),Y
     jmp drop                ; Pop lo byte of value off PSTACK
 
-FORTH_WORD "c!"             ; ------------------------------------------------
+FORTH_WORD "c!"             ; -------------------------------------------L813-
 c_store:                    ; C! (b a -- )
     jsr pop_addr_w          ; Use W as target address pointer
     jmp store_lo_iw
 
+FORTH_WORD ":"              ; -------------------------------------------L823-
+colon:                      ; : ( -- )
+    jmp enter
+    .word exit
+
 FORTH_WORD "constant"       ; ------------------------------------------------
-;   .word docol
-;   .word creat
-;   .word smudg
-;   .word lbrac
-;   .word semis
-const:
-    ldy #$03                ; IP is at code past link, offset by `jmp const`
+constant:
+    ldy #$03                ; IP is at code past link, offset by `jmp constant`
     lda (W),Y
     pha
     iny
     lda (W),Y
     jmp push
 
-FORTH_WORD "user"           ; ------------------------------------------------
-;   .word docol
-;   .word const
-;   .word pscod
-douse:
-    jsr enter_ml            ; TODO: ENTER_ML is TEMPORARY scaffolding
-    ldy #$02
-    clc
-    lda (W),Y
-    adc UP
-    pha
-    lda #$00
-    adc UP+1
-    jmp push
-
 FORTH_WORD "0"              ; ------------------------------------------------
 zero:                       ; 0 ( -- 0000)
-    jmp const
+    jmp constant
     .word 0
 
 FORTH_WORD "1"              ; ------------------------------------------------
 one:                        ; 1 ( -- 0001)
-    jmp const
+    jmp constant
     .word 1
 
 FORTH_WORD "2"              ; ------------------------------------------------
 two:                        ; 2 ( -- 0002)
-    jmp const
+    jmp constant
     .word 2
 
 FORTH_WORD "3"              ; ------------------------------------------------
 three:                      ; 3 ( -- 0003)
-    jmp const
+    jmp constant
     .word 3
 
 FORTH_WORD "bl"             ; ------------------------------------------------
 bl:                         ; BL ( -- ' ')
-    jmp const
+    jmp constant
     .word ' '
 
 FORTH_WORD "tib"            ; ------------------------------------------------
 tib:                        ; tib ( -- a)
-    jmp const
+    jmp constant
     .word TIBX
 
 FORTH_WORD "1+"             ; ------------------------------------------------
@@ -376,6 +372,7 @@ word_char:
 word_line_done:
     sta WEND                ; Replace space|other with RETURN
 word_done:
+;;;;inc PNTR
     sty WORD                ; Count byte at beginning of word buffer
     lda #<(WORD)            ; Replace separator with WORD pointer on PSTACK
     sta PSTACK,X
@@ -443,7 +440,7 @@ interpret:                  ; INTERPRET ( -- )
     .word word
     .word p_find_p
     .word execute
-    .word word_out
+    .word p_out_p
     .word exit
 
 FORTH_WORD "quit"           ; ------------------------------------------L2381-
@@ -460,8 +457,8 @@ p_reset_p:                  ; (RESET) ( -- )
     ldx RRESET              ; S: Reset RSTACK, but save original coin JSR/RTS
     txs
     ldx XSAVE
-    lda #$00                ; And clear STATE (interpreting)
-    sta STATE
+    lda #$00
+    sta STATE               ; Clear STATE (interpreting)
     jmp next
 
 FORTH_WORD "."              ; ------------------------------------------L3562-
@@ -495,14 +492,23 @@ break:                      ; Debug word to go to C128 monitor
     brk
 
 W9999:
-FORTH_WORD "~out"           ; ------------------------------------------------
-word_out:
+FORTH_WORD "(out)"          ; ------------------------------------------------
+p_out_p:                    ; (OUT) ( -- )
     lda WEND                ; Get the last space|CR
     cmp #C_RETURN           ; Done with word on this line?
-    beq word_out_line       ; Process line
+    beq p_out_p_line        ; Process line
     jmp next                ; No, keep processing more words
-word_out_line:
+p_out_p_line:
+    inc PNTR                ; Make space
     inc PNTR
+    lda EMITBUF             ; Check count byte for empty buffer
+    beq p_out_p_ok
+    cprint EMITBUF
+p_out_p_emit_done:
+    lda #$00
+    sta EMITBUF             ; Reset EMIT buffer
+p_out_p_ok:
+    inc PNTR                ; Make space
     cprint ok
     jsr CROUT
     jmp next
@@ -511,7 +517,6 @@ word_out_line:
 ; TODO: we are hanging out behind the BASIC stub for now. The kernel will
 ; move once we have a kernel to move and a memory layout to move it to.
 coin:
-    store_w APPAREA,UP      ; UP is PSP base for a single-task Forth
     ldx #$00                ; X: Empty PSTACK
 cold:
     ; EMPTY-BUFFERS...      ; TODO: Set up for disk usage
@@ -532,10 +537,6 @@ abort_loop:
 
 
 ;-----------------------------------------------------------------------------
-enter_ml:
-    store_w word_out,IP     ; TODO: ENTER_ML is TEMPORARY scaffolding
-    rts
-;
 ; ENTER is common across all colon definitions
 ;
 enter:                      ; Common entry for all colon defs
