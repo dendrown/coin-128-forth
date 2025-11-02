@@ -158,6 +158,19 @@ p_find_p_number:
     jmp push
 
 
+FORTH_WORD "ascii"          ; -------------------------------------------L337-
+ascii:                      ; ASCII x ( -- c)
+    jmp enter
+    .word bl
+    .word word
+    .word ascii_word
+    .word exit
+ascii_word:
+    lda WORD+1              ; Skip word length & grab first char
+    pha                     ; Lo byte is char
+    lda #$00                ; Hi byte is always zero for ASCII char
+    jmp put                 ; Replace WORD pointer on stack with ASCII char
+
 FORTH_WORD "emit"           ; -------------------------------------------L337-
 emit:                       ; EMIT (c -- )
     ldy EMITBUF             ; Count is offset for new char in EMIT buffer
@@ -340,7 +353,7 @@ one_minus:                  ; 1- (n -- n-1)
     .word minus
     .word exit
 
-FORTH_WORD "rot"            ; ------------------------------------------------
+FORTH_WORD "rot"            ; ------------------------------------------L1274-
 rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     jmp enter
     .word to_r
@@ -349,7 +362,7 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     .word swap
     .word exit
 
-FORTH_WORD "word"           ; ------------------------------------------------
+FORTH_WORD "word"           ; ------------------------------------------L1902-
 word:                       ; WORD (c -- a)
     lda PSTACK,X            ; Store word separator
     sta WEND                ; Save space|other
