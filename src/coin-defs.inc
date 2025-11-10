@@ -7,7 +7,7 @@ STATE   := $3F              ; Forth main loop state     (<FINDPNT)
 DP      := $40              ; 41:40 Dictionary pointer  (>FINDPNT <DATLIN)
 RRESET  := $42              ; RSTACK reset cap          (BASIC >DATLIN)
 C128_43 := $43              ; 44:43                     (BASIC DATPTR)
-FREE47  := $47              ; 48:47                     (BASIC VARNAM)
+DPSEEK  := $47              ; 48:47                     (BASIC VARNAM)
 
 WORD    := $63              ; 63-70 Curr word: 14 chars (FAC1:FACSGN:SGNFLAG)
                             ;       [CNT|12-CHARS|SPC]  (FAC2:ARGSGN:ARIFLAG)

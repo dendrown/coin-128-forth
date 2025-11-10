@@ -7,7 +7,6 @@
 .include "coin-defs.inc"    ; Coin-128 Forth definitions & macros
 
 .setcpu "6502"
-.feature loose_string_term
 .feature string_escapes
 
 ; Constants
@@ -113,11 +112,14 @@ execute:                    ; EXECUTE (a -- )
 FORTH_WORD "(find)"         ; -------------------------------------------L243-
 p_find_p:                   ; (FIND) (a -- a)       \ for a dictionary word
                             ;        (a -- a a)     \ for a number
-    store_w W9999,DP        ; Initialize start of dictionary
+    lda DP                  ; Initialize dictionary seek pointer
+    sta DPSEEK
+    lda DP+1
+    sta DPSEEK+1
                             ; TODO: Check: if a != W => CMOVE to WORD
 p_find_p_word:
     ldy #$00
-    lda (DP),Y              ; Load count byte
+    lda (DPSEEK),Y          ; Load count byte
     and #WLENMSK            ; Remove precedence bit
     beq p_find_p_number     ; Zero-length word never matches; end of dictionary
     sta COUNT               ; Save length for offset
@@ -125,7 +127,7 @@ p_find_p_word:
     bne p_find_p_nope       ; Dictionary & intepreted word lengths do NOT match
     tay                     ; Y <- char count for word candidate
 p_find_p_char:
-    lda (DP),Y              ; Load next char (working backwards)
+    lda (DPSEEK),Y          ; Load next char (working backwards)
     cmp WORD,Y              ; Test char against WORD buffer
     bne p_find_p_nope
     dey
@@ -135,23 +137,23 @@ p_find_p_nope:
     ldy COUNT               ; Get offset to link to previous word
     iny                     ; Offset = count byte + word length
     iny                     ; Start with hi-byte
-    lda (DP),Y              ; Only check hi-byte (no ZP dictionary)
+    lda (DPSEEK),Y          ; Only check hi-byte (no ZP dictionary)
     beq p_find_p_number
     pha                     ; Note hi-byte of next word
     dey
-    lda (DP),Y              ; Grab lo-byte of next word
-    sta DP                  ; Store it for previous word
+    lda (DPSEEK),Y          ; Grab lo-byte of next word
+    sta DPSEEK              ; Store it for previous word
     pla                     ; Pull hi-byte again
-    sta DP+1                ; Store it for previous word
+    sta DPSEEK+1            ; Store it for previous word
     jmp p_find_p_word
 p_find_p_match:
     clc
     lda COUNT
     adc #WORDOFF+1          ; Word char count + length + link will never carry
-    adc DP                  ; Calc lo byte offset to dictionary word CFA
+    adc DPSEEK              ; Calc lo byte offset to dictionary word CFA
     pha
     lda #$00                ; Calc hi byte of dictionary word CFA
-    adc DP+1
+    adc DPSEEK+1
     jmp put                 ; PSTACK, in place: word-string => word-exec
 p_find_p_number:
     lda #<(number)
@@ -336,12 +338,17 @@ bl:                         ; BL ( -- ' ')
     jmp constant
     .word ' '
 
-FORTH_WORD "tib"            ; ------------------------------------------------
+FORTH_WORD "tib"            ; ------------------------------------------L1010-
 tib:                        ; tib ( -- a)
     jmp constant
     .word TIBX
 
-FORTH_WORD "1+"             ; ------------------------------------------------
+FORTH_WORD "dp"             ; ------------------------------------------L1042-
+dp:                         ; DP ( -- a)
+    jmp constant
+    .word DP
+
+FORTH_WORD "1+"             ; ------------------------------------------L1170-
 one_plus:                   ; 1+ (n -- n+1)
     jmp enter
     .word one
@@ -355,6 +362,12 @@ one_minus:                  ; 1- (n -- n-1)
     .word minus
     .word exit
 
+FORTH_WORD "here"           ; ------------------------------------------L1190-
+here:                       ; HERE ( -- a)
+    jmp enter
+    .word fetch
+    .word exit
+
 FORTH_WORD "rot"            ; ------------------------------------------L1274-
 rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     jmp enter
@@ -364,7 +377,7 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     .word swap
     .word exit
 
-FORTH_WORD '."'             ; ------------------------------------------L1701-
+FORTH_WORD ".\""            ; ------------------------------------------L1701-
 dot_q:                      ; ." x1 x2 ... " ( -- )
     stx XSAVE               ; Save PSTACK pointer
     ldx EMITBUF             ; X <- offset in EMIT output buffer
@@ -569,7 +582,7 @@ coin:
 cold:
     ; EMPTY-BUFFERS...      ; TODO: Set up for disk usage
     ; ORIG...               ; TODO: Set up memory
-    ; FORTH...              ; TODO: Set FORTH vocabulary linkage
+    store_w W9999,DP        ; Set FORTH vocabulary linkage
     jmp abort_loop          ; TODO: COLD & ABORT should be proper words
 abort:
     ; FORTH...              ; TODO: Select FORTH trunk vocabulary
