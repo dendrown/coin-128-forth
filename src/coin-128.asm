@@ -7,6 +7,8 @@
 .include "coin-defs.inc"    ; Coin-128 Forth definitions & macros
 
 .setcpu "6502"
+.feature loose_string_term
+.feature string_escapes
 
 ; Constants
 .define APP_TITLE   "coin-128 forth"
@@ -362,6 +364,38 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     .word swap
     .word exit
 
+FORTH_WORD '."'             ; ------------------------------------------L1701-
+dot_q:                      ; ." x1 x2 ... " ( -- )
+    stx XSAVE               ; Save PSTACK pointer
+    ldx EMITBUF             ; X <- offset in EMIT output buffer
+dot_q_loop:
+    exec_word word          ; Get next word from input stream
+    BRK
+    ldy WORD                ; Check for end quote (length)
+    cpy #$01
+    bne dot_q_out
+    lda WORD+1              ; Check for end quote (char)
+    cmp #'"'
+    bne dot_q_out
+    jmp dot_q_done
+dot_q_out:
+    BRK
+    sta EMITBUF,X           ; Emit current char in current word
+    inx
+    iny                     ; Y <- next char in current word
+    cmp WORD
+    bne dot_q_out           ; Continue with next char in current word
+    lda #' '                ; Space to separate next word
+    sta EMITBUF,X
+    inx                     ; NOTE: final word will also have an ending space
+    jmp dot_q_loop          ; Finished all chars; go to next word
+dot_q_done:
+    stx EMITBUF             ; Record new EMIT output buffer length
+    ldx XSAVE               ; Restore PSTACK pointer
+    BRK
+    jmp next
+
+
 FORTH_WORD "word"           ; ------------------------------------------L1902-
 word:                       ; WORD (c -- a)
     lda PSTACK,X            ; Store word separator
@@ -476,6 +510,7 @@ p_reset_p:                  ; (RESET) ( -- )
 
 FORTH_WORD "."              ; ------------------------------------------L3562-
 dot:                        ; . (n -- )
+    ; TODO:                 ; TODO: Complete partial implementation...
     jsr dot_sub             ; TODO: Check for empty stack!
     jmp next
 dot_sub:                    ; Subroutine called from . and .S
