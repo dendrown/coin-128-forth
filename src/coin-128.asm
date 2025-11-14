@@ -32,7 +32,7 @@
 
 basic_2:                    ; Small BASIC launcher
     .word basic_4, 2        ; Point to next BASIC line
-    .byte BT_REM, .sprintf(" %s", APP_TITLE), $00
+    .byte BT_REM, .concat(" ", APP_TITLE), $00
 basic_4:
     BASIC_SYS_TO_END = 13   ; Hard-code last BASIC line len (1-pass assembler)
     .word basic_end, 4      ; Last line points to null BASIC line
@@ -102,7 +102,13 @@ execute:                    ; EXECUTE (a -- )
     sta W+1
     inx                     ; Pop PSTACK
     inx
-    jmp (W)
+    ; FIXME:
+    ; FIXME: When executing a forth word as the last word on the line,
+    ; FIXME: the IP is NOT being incremented to EXIT in INTERPRET, and
+    ; FIXME: so (OUT) is being called twice. It works as expected for
+    ; FIXME: words implemented in assembly language.
+    ; FIXME:
+    jmp (W)                 ; Call word pulled from PSTACK directly
 .macro exec_word addr
     push_word addr
     jmp execute
@@ -383,7 +389,6 @@ dot_q:                      ; ." x1 x2 ... " ( -- )
     ldx EMITBUF             ; X <- offset in EMIT output buffer
 dot_q_loop:
     exec_word word          ; Get next word from input stream
-    BRK
     ldy WORD                ; Check for end quote (length)
     cpy #$01
     bne dot_q_out
@@ -392,7 +397,6 @@ dot_q_loop:
     bne dot_q_out
     jmp dot_q_done
 dot_q_out:
-    BRK
     sta EMITBUF,X           ; Emit current char in current word
     inx
     iny                     ; Y <- next char in current word
@@ -405,7 +409,6 @@ dot_q_out:
 dot_q_done:
     stx EMITBUF             ; Record new EMIT output buffer length
     ldx XSAVE               ; Restore PSTACK pointer
-    BRK
     jmp next
 
 
@@ -432,7 +435,6 @@ word_char:
 word_line_done:
     sta WEND                ; Replace space|other with RETURN
 word_done:
-;;;;inc PNTR
     sty WORD                ; Count byte at beginning of word buffer
     lda #<(WORD)            ; Replace separator with WORD pointer on PSTACK
     sta PSTACK,X
@@ -443,7 +445,7 @@ word_error:
     inc PNTR
     inc PNTR
     cprintln error
-    jmp abort_loop          ; FIXME: Forthify error handling
+    jmp pop                 ; Remove WORD pointer from stack
 
 FORTH_WORD "number"         ; ------------------------------------------L2007-
 number:                     ; NUMBER (a -- n)
@@ -521,6 +523,8 @@ p_reset_p:                  ; (RESET) ( -- )
     sta STATE               ; Clear STATE (interpreting)
     jmp next
 
+.byte "pad"
+
 FORTH_WORD "."              ; ------------------------------------------L3562-
 dot:                        ; . (n -- )
     ; TODO:                 ; TODO: Complete partial implementation...
@@ -570,8 +574,7 @@ p_out_p_emit_done:
     sta EMITBUF             ; Reset EMIT buffer
 p_out_p_ok:
     inc PNTR                ; Make space
-    cprint ok
-    jsr CROUT
+    cprintln ok
     jmp next
 
 ;-----------------------------------------------------------------------------
@@ -595,7 +598,6 @@ abort_loop:
     sta IP+1
     exec_word quit
     jmp abort_loop
-
 
 ;-----------------------------------------------------------------------------
 ; ENTER is common across all colon definitions
@@ -648,20 +650,14 @@ next:
     iny
     lda (IP),Y
     sta W+1
-    clc
-    lda IP                  ; Set IP <- next word
-    adc #$02                ; Advance IP
-    sta IP
-    lda IP+1
-    adc #$00
-    sta IP+1
+    inc_word_ptr IP         ; Set IP <- next word
     jmp (W)                 ; Execute DTC
 
 
 ;-----------------------------------------------------------------------------
 .rodata
 
-welcome:    cstring .sprintf("%s v%s", APP_TITLE, APP_VERSION)
+welcome:    cstring .concat(APP_TITLE, " v", APP_VERSION)
 ok:         cstring " ok"
 error:      cstring "error!"
 silliness1: cstring "forth? maybe zeroth..."

@@ -20,6 +20,8 @@ VICSCN      := $0400    ; VIC 40-col text screen
 APPAREA     := $1300    ; Application program area (1300..1BFF)
 RAMBOT      := $1C00    ; Start of BASIC text (kernal sets MEMBOT here)
 
+JHARDRESET  := $4000    ; BASIC cold start entry point
+JSOFTRESET  := $4003    ; BASIC warm start entry point
 INLIN       := $4F93    ; Input a line to the input buffer (BUF)
 
 ;-----------------------------------------------------------------------------
