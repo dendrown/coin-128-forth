@@ -47,17 +47,7 @@ main:
     cprintln silliness1
     lda #$00
     sta EMITBUF             ; Initialize EMIT buffer [emptied in (OUT)]
-    tsx                     ; Fix the RSTACK TOP to keep everything so far
-    txa
-    sec
-    sbc #$04                ; Also keep room for our return addr AND one IP
-    sta RRESET              ; Store the RSTACK-RESET cap for (RESET)
     jsr coin
-done:
-    jsr CROUT
-    cprintln silliness2
-    jsr CROUT
-    rts
 
 ;-----------------------------------------------------------------------------
 ; Forth vocabulary:
@@ -70,9 +60,10 @@ W0000:
 
 FORTH_WORD "bye"            ; ------------------------------------------------
 bye:                        ; ( -- )
-    pla                     ; Pop last IP
-    pla
-    rts                     ; Return to BASIC
+    jsr CROUT
+    cprintln silliness2
+    jsr CROUT
+    jmp JSOFTRESET
 
 FORTH_WORD "ok"             ; ------------------------------------------------
     jmp next                ; OK ( -- )
