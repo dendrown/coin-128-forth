@@ -47,7 +47,10 @@ main:
     cprintln silliness1
     lda #$00
     sta EMITBUF             ; Initialize EMIT buffer [emptied in (OUT)]
-    jsr coin
+    tsx                     ; Fix the RSTACK TOP to keep everything so far
+    stx RRESET              ; Store the RSTACK-RESET cap for (RESET)
+
+    jmp coin
 
 ;-----------------------------------------------------------------------------
 ; Forth vocabulary:
@@ -330,7 +333,7 @@ three:                      ; 3 ( -- 0003)
     jmp constant
     .word 3
 
-FORTH_WORD "bl"             ; ------------------------------------------------
+FORTH_WORD "bl"             ; -------------------------------------------L952-
 bl:                         ; BL ( -- ' ')
     jmp constant
     .word ' '
@@ -358,6 +361,12 @@ one_minus:                  ; 1- (n -- n-1)
     .word one
     .word minus
     .word exit
+
+FORTH_WORD "2*"             ; ------------------------------------------------
+two_times:                  ; 1+ (n -- n*2)
+    asl PSTACK,X
+    rol PSTACK+1,X
+    jmp next
 
 FORTH_WORD "here"           ; ------------------------------------------L1190-
 here:                       ; HERE ( -- a)
@@ -502,12 +511,12 @@ quit:                       ; QUIT ( -- )
     jmp enter
     .word p_reset_p
     .word interpret
-    .word exit
+    .word quit              ; Loop back to QUIT as we just (RESET) the RSTACK!
 
 FORTH_WORD "(reset)"        ; ------------------------------------------------
 p_reset_p:                  ; (RESET) ( -- )
     stx XSAVE
-    ldx RRESET              ; S: Reset RSTACK, but save original coin JSR/RTS
+    ldx RRESET              ; S: Reset RSTACK, but save what came before coin
     txs
     ldx XSAVE
     lda #$00
