@@ -19,8 +19,7 @@ W       := $FA;FB           ; Forth Working [W] register
 IP      := $FC;FD           ; Forth Interpreter Pointer [IP]
 XSAVE   := $FE              ; Temporary for X register
 
-EMITBUF := APPAREA          ; FIXME: TEST-DEV
-;MITBUF := BUF              ; EMIT/print buffer         (BASIC/moN input BUF)
+EMITBUF := BUF              ; EMIT/print buffer         (BASIC/moN input BUF)
 TIBX    := $0B00            ; Initial Terminal Input Buffer
 PSTACK  := APPAREA          ; Parameter stack page
 

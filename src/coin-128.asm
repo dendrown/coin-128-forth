@@ -515,6 +515,7 @@ p_reset_p:                  ; (RESET) ( -- )
     txs
     ldx XSAVE
     lda #$00
+    sta EMITBUF             ; Reset EMIT buffer
     sta STATE               ; Clear STATE (interpreting)
     jmp next
 
@@ -564,9 +565,6 @@ p_out_p_line:
     lda EMITBUF             ; Check count byte for empty buffer
     beq p_out_p_ok
     cprint EMITBUF
-p_out_p_emit_done:
-    lda #$00
-    sta EMITBUF             ; Reset EMIT buffer
 p_out_p_ok:
     inc PNTR                ; Make space
     cprintln line_ok
