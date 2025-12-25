@@ -69,7 +69,8 @@ bye:                        ; ( -- )
     jmp JSOFTRESET
 
 FORTH_WORD "ok"             ; ------------------------------------------------
-    jmp next                ; OK ( -- )
+ok:                         ; OK ( -- )
+    jmp next                ; No-op to facilitate reentering a previous line
 
 FORTH_WORD ".s"             ; ------------------------------------------------
 dot_s:                      ; .S (_ -- _)
@@ -96,12 +97,6 @@ execute:                    ; EXECUTE (a -- )
     sta W+1
     inx                     ; Pop PSTACK
     inx
-    ; FIXME:
-    ; FIXME: When executing a forth word as the last word on the line,
-    ; FIXME: the IP is NOT being incremented to EXIT in INTERPRET, and
-    ; FIXME: so (OUT) is being called twice. It works as expected for
-    ; FIXME: words implemented in assembly language.
-    ; FIXME:
     jmp (W)                 ; Call word pulled from PSTACK directly
 .macro exec_word addr
     push_word addr
@@ -574,8 +569,8 @@ p_out_p_emit_done:
     sta EMITBUF             ; Reset EMIT buffer
 p_out_p_ok:
     inc PNTR                ; Make space
-    cprintln ok
-    jmp next
+    cprintln line_ok
+    jmp exit                ; NOTE: this is essentially the exit for EXECUTE
 
 ;-----------------------------------------------------------------------------
 ; TODO: we are hanging out behind the BASIC stub for now. The kernel will
@@ -658,7 +653,7 @@ next:
 .rodata
 
 welcome:    cstring .concat(APP_TITLE, " v", APP_VERSION)
-ok:         cstring " ok"
+line_ok:    cstring " ok"
 error:      cstring "error!"
 silliness1: cstring "forth? maybe zeroth..."
 silliness2: cstring "we don't do anything yet!"
