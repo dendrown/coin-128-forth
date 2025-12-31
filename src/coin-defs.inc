@@ -6,9 +6,9 @@
 STATE   := $3F              ; Forth main loop state     (<FNDPNT)
 RRESET  := $40              ; RSTACK reset cap          (>FNDPNT)
 DP      := $41;42           ; Dictionary pointer        (BASIC DATLIN)
-DPSEEK  := $43;44           ; Current word for (FIND)   (BASIC DATPTR)
-FREE_45 := $45;46           ;                           (BASIC INPPTR)
-FREE_47 := $47;48           ;                           (BASIC VARNAM)
+VOCLINK := $43;44           ; Top vocabulary link       (BASIC DATPTR)
+VOCSEEK := $45;46           ; Current word for (FIND)   (BASIC INPPTR)
+Z       := $47;48           ; General purpose register  (BASIC VARNAM)
 
 WORD    := $63;..70         ; Curr word: Max 14 chars   (FAC1:FACSGN:SGNFLAG)
                             ;       [CNT|12-CHARS|SPC]  (FAC2:ARGSGN:ARIFLAG)
@@ -40,20 +40,41 @@ curr_forth_word .set 0      ; Holds the link to the current FORTH_WORD
 .macro FORTH_WORD name      ; Creates name:link for a dictionary entry
     prev_forth_word .set curr_forth_word
     curr_forth_word .set curr_forth_word + 1
-.ident (.sprintf("W%04d", curr_forth_word)):
+.ident (.sprintf("w%04d", curr_forth_word)):
     cstring name                                        ; NFA
-    .word .ident (.sprintf("W%04d", prev_forth_word))   ; LFA
+    .word .ident (.sprintf("w%04d", prev_forth_word))   ; LFA
 .endmacro
 
 
-.macro inc_word_ptr addr    ; Increment word address pointer
+.macro init_vocseek         ; VOCLINK => VOCSEEK for dictionary search/update
+    lda VOCLINK
+    sta VOCSEEK
+    lda VOCLINK+1
+    sta VOCSEEK+1
+.endmacro
+
+
+.macro cpy_wptr src,dst     ; Copy word address pointer
+    lda src
+    sta dst
+    lda src+1
+    sta dst+1
+.endmacro
+
+
+.macro adc_w v,addr         ; Add v to 16-bit word
     clc                     ; addr <- next word
     lda addr                ; Increment lo byte
-    adc #$02
+    adc v
     sta addr
     lda addr+1              ; Carry into hi byte
     adc #$00
     sta addr+1
+.endmacro
+
+
+.macro inc_wptr addr        ; Increment word address pointer
+    adc_w #$02,addr
 .endmacro
 
 
@@ -126,10 +147,30 @@ done:
 .endmacro
 
 
-.macro store_w w, addr      ; Store a 16-bit value in addr (LO:HI)
+.macro store_w w,addr       ; Store a 16-bit value in addr (LO:HI)
     lda #<(w)
     sta addr
     lda #>(w)
     sta addr+1
+.endmacro
+
+
+.macro store_iy_w w,addr    ; Store a 16-bit value to (addr),Y & advance Y offset
+    lda #<(w)
+    sta (addr),Y
+    iny
+    lda #>(w)
+    sta (addr),Y
+    iny
+.endmacro
+
+
+.macro store_iy_ptr ptr,addr; Store pointer value to (addr),Y & advance Y offset
+    lda ptr
+    sta (addr),Y
+    iny
+    lda ptr+1
+    sta (addr),Y
+    iny
 .endmacro
 

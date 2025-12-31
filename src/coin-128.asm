@@ -2,6 +2,7 @@
 ;
 ; vim: set ft=asm_ca65:
 ;-----------------------------------------------------------------------------
+.include "opcodes.inc"      ; 6502 assembly language opcodes
 .include "c128.inc"         ; cc65 definitions [origin: Elite128]
 .include "c128-defs.inc"    ; More definitions for the C128
 .include "coin-defs.inc"    ; Coin-128 Forth definitions & macros
@@ -13,7 +14,7 @@
 .define APP_TITLE   "coin-128 forth"
 .define APP_VERSION "0.1"
 
-
+;-----------------------------------------------------------------------------
 .macro push_word addr
     dex
     lda #>(addr)
@@ -23,6 +24,10 @@
     sta PSTACK,X
 .endmacro
 
+.macro exec_word addr
+    push_word addr
+    jmp execute
+.endmacro
 
 ;-----------------------------------------------------------------------------
 .org $1C01                  ; ML starts after quick BASIC loader
@@ -40,6 +45,9 @@ basic_4:
 basic_end:
     .byte $00, $00          ; BASIC_SYS_TO_END covers these NULLs
 
+;-----------------------------------------------------------------------------
+; TODO: we are hanging out behind the BASIC stub for now. The kernel will
+; move once we have a kernel to move and a memory layout to move it to.
 main:
     cld                     ; No BCD operations at all
     cprintln welcome
@@ -49,17 +57,105 @@ main:
     sta EMITBUF             ; Initialize EMIT buffer [emptied in (OUT)]
     tsx                     ; Fix the RSTACK TOP to keep everything so far
     stx RRESET              ; Store the RSTACK-RESET cap for (RESET)
+;-----------------------------------------------------------------------------
+; TODO: Fill in skeletal words & move into the main vocabulary
+cold:
+    ; EMPTY-BUFFERS...      ; TODO: Set up for disk usage
+    ; ORIG...               ; TODO: Set up memory
+    ldx #$00                ; X: Empty PSTACK
+    store_w w9999,VOCLINK   ; Set FORTH vocabulary linkage
+    store_w voc_end,DP      ; Init user vocabulary word pointer
+    jmp abort_loop          ; TODO: COLD & ABORT should be proper words
+abort:
+    ; FORTH...              ; TODO: Select FORTH trunk vocabulary
+    ; DEFINITIONS...        ; TODO: Set CURRENT to CONTEXT
+    .word abort             ; TODO: ABORT should be a proper word
+abort_loop:
+    lda #<(abort)           ; Re-queue ABORT as hacked previous "word"
+    sta IP
+    lda #>(abort)
+    sta IP+1
+    exec_word quit
+    jmp abort_loop
 
-    jmp coin
+;-----------------------------------------------------------------------------
+;
+; PUSH/PUT: parameter stack operations
+;
+push:                       ; PSTACK uses page 1300, grows from the top, down
+    dex
+    dex
+put:
+    sta PSTACK+1,X          ; Hi byte from A
+    pla                     ; Lo byte from R-stack
+    sta PSTACK,X
+    jmp next
+;
+; ENTER is common across all colon definitions:
+;   push IP
+;   IP := (W) + sizeof(`JMP enter`)
+;   W := IP (optimize...!)
+;   continue @ (W)
+enter:                      ; Common entry for all colon defs
+    lda IP
+    pha                     ; Stack BACKWARDS [__:LO] to combine ADD/PUSH
+    lda IP+1
+    pha                     ; Stack BACKWARDS [HI:lo]
+    clc                     ; Set IP <- first WORD address
+    lda W                   ; W points to JMP ENTER in the current word
+    adc #$03                ; skip past the JMP instruction
+    sta IP
+    lda W+1
+    adc #$00
+    sta IP+1
+    ldy #$00                ; Set W <- (IP)
+    lda (IP),Y
+    sta W
+    iny
+    lda (IP),Y
+    sta W+1
+    jmp (W)                 ; Execute DTC
+;
+; EXIT represents the semicolon for all word definitions:
+;   pop IP
+exit:                       ; Terminate forth word thread
+    pla
+    sta IP+1                ; Remove from RSTACK BACKWARDS [HI:lo] (see: ENTER)
+    pla
+    sta IP                  ; Remove from RSTACK BACKWARDS [__:LO]
+;
+; NEXT is the address interpreter that moves from machine-level word to word:
+;   IP++
+;   W := (IP)
+;   continue @ (W)
+next:
+    inc_wptr IP             ; Set IP <- next word
+    ldy #$00                ; Set W <- (IP)
+    lda (IP),Y
+    sta W
+    iny
+    lda (IP),Y
+    sta W+1
+    jmp (W)                 ; Execute DTC
+;-----------------------------------------------------------------------------
+.rodata
+
+welcome:    cstring .concat(APP_TITLE, " v", APP_VERSION)
+line_ok:    cstring " ok"
+error:      cstring "error!"
+silliness1: cstring "forth? maybe zeroth..."
+silliness2: cstring "we don't do anything yet!"
+
+
 
 ;-----------------------------------------------------------------------------
 ; Forth vocabulary:
 ; Word tags "L9999" refer to fig6502.
 ; @ref https://github.com/jefftranter/6502/blob/master/asm/fig-forth/fig6502.asm
 orig:
-W0000:
+w0000:
     .byte $00               ; VOCABULARY: start token (end of reverse search)
-    .word $0000
+    .word $0000             ; Null link ends word search
 
 FORTH_WORD "bye"            ; ------------------------------------------------
 bye:                        ; ( -- )
@@ -98,31 +194,23 @@ execute:                    ; EXECUTE (a -- )
     inx                     ; Pop PSTACK
     inx
     jmp (W)                 ; Call word pulled from PSTACK directly
-.macro exec_word addr
-    push_word addr
-    jmp execute
-.endmacro
-
 
 FORTH_WORD "(find)"         ; -------------------------------------------L243-
 p_find_p:                   ; (FIND) (a -- a)       \ for a dictionary word
                             ;        (a -- a a)     \ for a number
-    lda DP                  ; Initialize dictionary seek pointer
-    sta DPSEEK
-    lda DP+1
-    sta DPSEEK+1
+    init_vocseek            ; Initialize dictionary seek pointer
                             ; TODO: Check: if a != W => CMOVE to WORD
 p_find_p_word:
     ldy #$00
-    lda (DPSEEK),Y          ; Load count byte
+    lda (VOCSEEK),Y         ; Load count byte
     and #WLENMSK            ; Remove precedence bit
-    beq p_find_p_number     ; Zero-length word never matches; end of dictionary
     sta COUNT               ; Save length for offset
+    beq p_find_p_nope       ; Zero-length word; start|end of dictionary
     cmp WORD                ; Check word length to avoid partials matching
     bne p_find_p_nope       ; Dictionary & intepreted word lengths do NOT match
     tay                     ; Y <- char count for word candidate
 p_find_p_char:
-    lda (DPSEEK),Y          ; Load next char (working backwards)
+    lda (VOCSEEK),Y         ; Load next char (working backwards)
     cmp WORD,Y              ; Test char against WORD buffer
     bne p_find_p_nope
     dey
@@ -132,23 +220,23 @@ p_find_p_nope:
     ldy COUNT               ; Get offset to link to previous word
     iny                     ; Offset = count byte + word length
     iny                     ; Start with hi-byte
-    lda (DPSEEK),Y          ; Only check hi-byte (no ZP dictionary)
+    lda (VOCSEEK),Y         ; Only check hi-byte (no ZP dictionary)
     beq p_find_p_number
     pha                     ; Note hi-byte of next word
     dey
-    lda (DPSEEK),Y          ; Grab lo-byte of next word
-    sta DPSEEK              ; Store it for previous word
+    lda (VOCSEEK),Y         ; Grab lo-byte of next word
+    sta VOCSEEK             ; Store it for previous word
     pla                     ; Pull hi-byte again
-    sta DPSEEK+1            ; Store it for previous word
+    sta VOCSEEK+1           ; Store it for previous word
     jmp p_find_p_word
 p_find_p_match:
     clc
     lda COUNT
     adc #WORDOFF+1          ; Word char count + length + link will never carry
-    adc DPSEEK              ; Calc lo byte offset to dictionary word CFA
+    adc VOCSEEK             ; Calc lo byte offset to dictionary word CFA
     pha
     lda #$00                ; Calc hi byte of dictionary word CFA
-    adc DPSEEK+1
+    adc VOCSEEK+1
     jmp put                 ; PSTACK, in place: word-string => word-exec
 p_find_p_number:
     lda #<(number)
@@ -178,6 +266,36 @@ emit:                       ; EMIT (c -- )
     iny
     sty EMITBUF
     jmp pop
+
+FORTH_WORD "cmove"          ; -------------------------------------------L365-
+cmove:                      ; CMOVE (a1 a2 u -- )
+    ; FIXME: IMPLEMENT AND
+    ; FIXME: COMPARE WITH
+    ; FIXME: CMOVE>
+    jmp next
+
+FORTH_WORD "cmove>"         ; -------------------------------------------L365-
+cmove_up:                   ; CMOVE> (a1 a2 u -- )
+    ldy PSTACK,X            ; Byte count: 256 (lower) byte max
+    inx                     ; Pop u
+    inx
+    lda PSTACK,X
+    sta W
+    inx                     ; Half-pop a2 (lo)
+    lda PSTACK,X
+    sta W+1
+    inx                     ; Half-pop a2 (hi)
+    lda PSTACK,X
+    sta Z
+    lda PSTACK+1,X
+    sta Z+1
+cmove_up_loop:
+    dey                     ; Start at index count-1
+    lda (Z),y               ; Copy (Z) into (W)
+    sta (W),y
+    cpy #$00                ; Copied last byte?
+    bne cmove_up_loop
+    jmp pop                 ; Pop a1
 
 FORTH_WORD ">r"             ; -------------------------------------------L563-
 to_r:                       ; >R (n -- )
@@ -366,6 +484,7 @@ two_times:                  ; 1+ (n -- n*2)
 FORTH_WORD "here"           ; ------------------------------------------L1190-
 here:                       ; HERE ( -- a)
     jmp enter
+    .word dp
     .word fetch
     .word exit
 
@@ -490,6 +609,50 @@ number_done:
 number_buff:
     .byte $04, $00, $00, $00, $00
 
+FORTH_WORD "create"         ; ------------------------------------------L2269-
+create:                     ; CREATE xxx ( -- )
+    jmp enter               ; xxx: ( -- a)
+    .word bl                ;
+    .word word              ; PSTACK [..|WORD] after reading xxx
+    .word here              ; PSTACK [..|WORD|DP]
+    .word create_fetch_len  ; PSTACK [..|WORD|DP|count]
+    .word one_plus          ; PSTACK [..|WORD|DP|count+1] (include count byte)
+    .word cmove_up          ; (DP) <- count|word
+    .word create_link
+    .word exit
+create_fetch_len:
+    lda WORD                ; Push count byte onto PSTACK
+    pha
+    lda #$00
+    jmp push
+create_link:
+    ldy #$00                ; Load word count
+    lda (DP),Y
+    tay
+    iny                     ; Offset length+1 to include count byte
+    lda VOCLINK             ; Link to old word
+    sta (DP),y
+    iny
+    lda VOCLINK+1
+    sta (DP),y
+    cpy_wptr DP,VOCLINK     ; VOCLINK <- DP as start of the new word
+    iny                     ; Advance DP to just after word|link
+    tya
+    clc
+    adc DP
+    sta DP
+    lda #$00
+    adc DP+1
+    sta DP+1
+    ldy #$00                ; CFA <- `CONSTANT CFA`
+    lda #OPC_JMP_abs        ; JMP constant
+    sta (DP),Y
+    iny
+    store_iy_w constant,DP
+    store_iy_ptr DP,DP      ; .word CFA
+    adc_w #$05,DP           ; DP += `JMP constantLo constantHi cfaLo cfaHi`
+    jmp exit
+
 FORTH_WORD "interpret"      ; ------------------------------------------L2269-
 interpret:                  ; INTERPRET ( -- )
     jmp enter
@@ -541,18 +704,17 @@ dot_sub:                    ; Subroutine called from . and .S
     ldx XSAVE               ; Restore pstack pointer
     rts
 
-W9990:
+w9990:
 FORTH_WORD "noop"           ; ------------------------------------------------
 noop:                       ; Debug word that does nothing
     jmp enter
     .word exit
 
-W9995:
     FORTH_WORD "break"      ; ------------------------------------------------
 break:                      ; Debug word to go to C128 monitor
     brk
 
-W9999:
+w9999:
 FORTH_WORD "(out)"          ; ------------------------------------------------
 p_out_p:                    ; (OUT) ( -- )
     lda WEND                ; Get the last space|CR
@@ -570,88 +732,6 @@ p_out_p_ok:
     cprintln line_ok
     jmp exit                ; NOTE: this is essentially the exit for EXECUTE
 
-;-----------------------------------------------------------------------------
-; TODO: we are hanging out behind the BASIC stub for now. The kernel will
-; move once we have a kernel to move and a memory layout to move it to.
-coin:
-    ldx #$00                ; X: Empty PSTACK
-cold:
-    ; EMPTY-BUFFERS...      ; TODO: Set up for disk usage
-    ; ORIG...               ; TODO: Set up memory
-    store_w W9999,DP        ; Set FORTH vocabulary linkage
-    jmp abort_loop          ; TODO: COLD & ABORT should be proper words
-abort:
-    ; FORTH...              ; TODO: Select FORTH trunk vocabulary
-    ; DEFINITIONS...        ; TODO: Set CURRENT to CONTEXT
-    .word abort             ; TODO: ABORT should be a proper word
-abort_loop:
-    lda #<(abort)           ; Re-queue ABORT as hacked previous "word"
-    sta IP
-    lda #>(abort)
-    sta IP+1
-    exec_word quit
-    jmp abort_loop
+voc_end:
+FORTH_WORD ""               ; Next word to be defined (by user)
 
-;-----------------------------------------------------------------------------
-; ENTER is common across all colon definitions
-;
-enter:                      ; Common entry for all colon defs
-    lda IP
-    pha                     ; Stack BACKWARDS [__:LO] to combine ADD/PUSH
-    lda IP+1
-    pha                     ; Stack BACKWARDS [HI:lo]
-    clc                     ; Set IP <- first WORD address
-    lda W                   ; W points to JMP ENTER in the current word
-    adc #$03                ; skip past the JMP instruction
-    sta IP
-    lda W+1
-    adc #$00
-    sta IP+1
-    jmp next
-;
-; EXIT represents the semicolon for all word definitions
-;
-exit:                       ; Terminate forth word thread
-    pla
-    sta IP+1                ; Remove from RSTACK BACKWARDS [HI:lo] (see: ENTER)
-    pla
-    sta IP                  ; Remove from RSTACK BACKWARDS [__:LO]
-    ldy #$00                ; W <- (IP)
-    lda (IP),Y
-    sta W
-    iny
-    lda (IP),Y
-    sta W+1
-    jmp (W)                 ; Execute DTC
-;
-; PUSH/PUT: parameter stack operations
-;
-push:                       ; PSTACK uses page 1300, grows from the top, down
-    dex
-    dex
-put:
-    sta PSTACK+1,X          ; Hi byte from A
-    pla                     ; Lo byte from R-stack
-    sta PSTACK,X
-;
-; NEXT is the address interpreter that moves from machine-level word to word
-;
-next:
-    ldy #$00                ; Set W <- (IP)
-    lda (IP),Y
-    sta W
-    iny
-    lda (IP),Y
-    sta W+1
-    inc_word_ptr IP         ; Set IP <- next word
-    jmp (W)                 ; Execute DTC
-
-
-;-----------------------------------------------------------------------------
-.rodata
-
-welcome:    cstring .concat(APP_TITLE, " v", APP_VERSION)
-line_ok:    cstring " ok"
-error:      cstring "error!"
-silliness1: cstring "forth? maybe zeroth..."
-silliness2: cstring "we don't do anything yet!"
