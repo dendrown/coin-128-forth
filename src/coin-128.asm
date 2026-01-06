@@ -93,8 +93,8 @@ put:
 ;
 ; ENTER is common across all colon definitions:
 ;   push IP
-;   IP := (W) + sizeof(`JMP enter`)
-;   W := IP (optimize...!)
+;   IP := W + sizeof(`JMP enter`)
+;   W  := (IP)
 ;   continue @ (W)
 enter:                      ; Common entry for all colon defs
     lda IP
@@ -269,13 +269,19 @@ emit:                       ; EMIT (c -- )
 
 FORTH_WORD "cmove"          ; -------------------------------------------L365-
 cmove:                      ; CMOVE (a1 a2 u -- )
-    ; FIXME: IMPLEMENT AND
-    ; FIXME: COMPARE WITH
-    ; FIXME: CMOVE>
-    jmp next
-
-FORTH_WORD "cmove>"         ; -------------------------------------------L365-
-cmove_up:                   ; CMOVE> (a1 a2 u -- )
+    jsr cmove_init          ; Z := a1 (not popped); W := a2; Y = count
+    sty COUNT
+    ldy #$00                ; Copy from 0..COUNT-1
+cmove_loop:
+    cpy COUNT
+    beq cmove_done
+    lda (Z),y               ; Copy (Z) into (W)
+    sta (W),y
+    iny
+    jmp cmove_loop
+cmove_done:
+    jmp pop                 ; Pop a1
+cmove_init:
     ldy PSTACK,X            ; Byte count: 256 (lower) byte max
     inx                     ; Pop u
     inx
@@ -289,6 +295,11 @@ cmove_up:                   ; CMOVE> (a1 a2 u -- )
     sta Z
     lda PSTACK+1,X
     sta Z+1
+    rts
+
+FORTH_WORD "cmove>"         ; -------------------------------------------L365-
+cmove_up:                   ; CMOVE> (a1 a2 u -- )
+    jsr cmove_init          ; Z := a1 (not popped); W := a2; Y = count
 cmove_up_loop:
     dey                     ; Start at index count-1
     lda (Z),y               ; Copy (Z) into (W)
