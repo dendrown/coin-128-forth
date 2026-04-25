@@ -46,6 +46,15 @@ curr_forth_word .set 0      ; Holds the link to the current FORTH_WORD
 .endmacro
 
 
+.macro FORTH_WORD_IMM name
+    prev_forth_word .set curr_forth_word
+    curr_forth_word .set curr_forth_word + 1
+.ident (.sprintf("w%04d", curr_forth_word)):
+    prc_cstring name                                        ; NFA with IMMEDIATE bit
+    .word .ident (.sprintf("w%04d", prev_forth_word))       ; LFA
+.endmacro
+
+
 .macro init_vocseek         ; VOCLINK => VOCSEEK for dictionary search/update
     lda VOCLINK
     sta VOCSEEK

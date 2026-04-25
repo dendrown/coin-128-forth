@@ -63,6 +63,7 @@ cold:
     ; EMPTY-BUFFERS...      ; TODO: Set up for disk usage
     ; ORIG...               ; TODO: Set up memory
     ldx #$00                ; X: Empty PSTACK
+    stx STATE               ; Start in interpret mode
     store_w w9999,VOCLINK   ; Set FORTH vocabulary linkage
     store_w voc_end,DP      ; Init user vocabulary word pointer
     jmp abort_loop          ; TODO: COLD & ABORT should be proper words
@@ -184,6 +185,16 @@ dot_s_loop:
 dot_s_done:
     ldx W                   ; Restore real PSP (X) value
     jmp next
+
+FORTH_WORD "lit"            ; --------------------------------------------L22-
+lit:                        ; LIT ( -- n)
+    inc_wptr IP             ; Advance IP to the literal
+    ldy #$00
+    lda (IP),Y              ; Lo byte
+    pha
+    iny
+    lda (IP),Y              ; Hi byte
+    jmp push
 
 FORTH_WORD "execute"        ; --------------------------------------------L75-
 execute:                    ; EXECUTE (a -- )
@@ -508,6 +519,18 @@ rot:                        ; ROT (n1 n2 n3 -- n2 n3 n1)
     .word swap
     .word exit
 
+FORTH_WORD ","              ; ------------------------------------------L1280-
+comma:                      ; , (n -- ) compile n at HERE
+    ldy #$00
+    lda PSTACK,X
+    sta (DP),Y
+    iny
+    lda PSTACK+1,X
+    sta (DP),Y
+    inc_wptr DP
+    jmp pop
+
+
 FORTH_WORD ".\""            ; ------------------------------------------L1701-
 dot_q:                      ; ." x1 x2 ... " ( -- )
     stx XSAVE               ; Save PSTACK pointer
@@ -690,7 +713,6 @@ p_reset_p:                  ; (RESET) ( -- )
     ldx XSAVE
     lda #$00
     sta EMITBUF             ; Reset EMIT buffer
-    sta STATE               ; Clear STATE (interpreting)
     jmp next
 
 .byte "pad"
