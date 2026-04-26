@@ -530,7 +530,6 @@ comma:                      ; , (n -- ) compile n at HERE
     inc_wptr DP
     jmp pop
 
-
 FORTH_WORD_IMM "["          ; ------------------------------------------L1495-
 left_bracket:               ; [ ( -- )
     lda #$00
@@ -603,9 +602,9 @@ word_done:
     sta PSTACK+1,X
     jmp next                ; End of good path
 word_error:
-    inc PNTR
-    inc PNTR
-    cprintln error
+    inc PNTR                ; Present an error message for the user
+    inc PNTR                ; Note: We'll swallow the RSTACK in (reset),
+    cprintln error          ;       clearing any orphaned JSR calls.
     jmp pop                 ; Remove WORD pointer from stack
 
 FORTH_WORD "number"         ; ------------------------------------------L2007-
@@ -614,19 +613,21 @@ number:                     ; NUMBER (a -- n)
     sta INPPTR              ; Lo byte of text pointer
     lda PSTACK+1,X
     sta INPPTR+1            ; Hi byte of text pointer
-number_check:
+    jsr number_sub
+    jmp next
+number_sub:                 ; Subroutine: INPPTR counted #string -> n on PSTACK
     ldy #$00
     lda (INPPTR),Y          ; Grab number of chars in number string
-    tay                     ; Use it as our offset, moving backwards
+    tay                     ; Y <- char offset (start at end & move backwards)
 number_check_loop:
-    lda (INPPTR),Y          ; Compensate for length byte at copy destination
+    lda (INPPTR),Y
     cmp #'0'                ; Bad ASCII digit < 0 ?
     bcc word_error
     cmp #'f'+1              ; Bad ASCII digit > F ?
     bcs word_error
     cmp #'9'+1              ; Good ASCII digit <= 9 ?
     bcc number_strip
-    cmp #'a'                ; Bad  ASCII digit < A ?
+    cmp #'a'                ; Bad ASCII digit < A ?
     bcc word_error
     adc #$08                ; Good ASCII digit A..F: add 8 + carry
 number_strip:
@@ -652,7 +653,7 @@ number_hex2bin_loop:
     jmp number_hex2bin_loop
 number_done:
     dex                     ; Half-push PSP so number is on top of PSTACK
-    jmp next
+    rts
 number_buff:
     .byte $04, $00, $00, $00, $00
 
