@@ -531,6 +531,19 @@ comma:                      ; , (n -- ) compile n at HERE
     jmp pop
 
 
+FORTH_WORD_IMM "["          ; ------------------------------------------L1495-
+left_bracket:               ; [ ( -- )
+    lda #$00
+    sta STATE
+    jmp next
+
+FORTH_WORD "]"              ; ------------------------------------------L1507-
+right_bracket:              ; ] ( -- )
+    lda #$01
+    sta STATE
+    jmp next
+
+
 FORTH_WORD ".\""            ; ------------------------------------------L1701-
 dot_q:                      ; ." x1 x2 ... " ( -- )
     stx XSAVE               ; Save PSTACK pointer

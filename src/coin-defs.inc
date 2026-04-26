@@ -26,8 +26,8 @@ PSTACK  := APPAREA          ; Parameter stack page
 
 MAXWORD = 12                ; Maximum WORD length (before separator) : TODO: 32
 WORDOFF = 2                 ; Offset to WORD in dictionary entry
-WLENMSK = $7F               ; Word length bit mask
-WPRCBIT = $10               ; Word precedence bit to indicate IMMEDIATE word
+WLENMSK = $7F               ; Word length bit mask (strips precedence bit)
+WPRCBIT = $80               ; Word precedence bit to indicate IMMEDIATE word
 
 
 ;-----------------------------------------------------------------------------
