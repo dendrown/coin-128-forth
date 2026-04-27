@@ -616,9 +616,16 @@ number:                     ; NUMBER (a -- n)
     jsr number_sub
     jmp next
 number_sub:                 ; Subroutine: INPPTR counted #string -> n on PSTACK
-    ldy #$00
+    lda #$00                ; Init #char-to-nybble buffer (for shorter input)
+    sta number_buff+1
+    sta number_buff+2
+    sta number_buff+3
+    sta number_buff+4
+    tay                     ; Y <- 0 (index of count byte in the #string)
     lda (INPPTR),Y          ; Grab number of chars in number string
     tay                     ; Y <- char offset (start at end & move backwards)
+    stx XSAVE               ; Borrow X as dest index during validation
+    ldx #4                  ; X = dest index, right-aligning into buffer [#1..4]
 number_check_loop:
     lda (INPPTR),Y
     cmp #'0'                ; Bad ASCII digit < 0 ?
@@ -632,11 +639,13 @@ number_check_loop:
     adc #$08                ; Good ASCII digit A..F: add 8 + carry
 number_strip:
     and #$0F                ; Strip off high nybble of ASCII
-    sta number_buff,Y
+    sta number_buff,x       ; Store right-aligned (X: 4 down to 1)
+    dex
     dey
     bne number_check_loop
 number_hex2bin:
-    ldy number_buff         ; Count of bytes to convert
+    ldx XSAVE               ; Restore PSTACK pointer
+    ldy #$04                ; Always produce 16-bit num (leading zeros pre-set)
 number_hex2bin_loop:
     lda number_buff-1,Y     ; Load stripped-ASCII hi nybble
     asl                     ; Shift into high nybble of A
@@ -654,7 +663,7 @@ number_hex2bin_loop:
 number_done:
     dex                     ; Half-push PSP so number is on top of PSTACK
     rts
-number_buff:
+number_buff:                ; TODO: handle >4 digit errors with BASE
     .byte $04, $00, $00, $00, $00
 
 FORTH_WORD "create"         ; ------------------------------------------L2269-
