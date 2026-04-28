@@ -206,9 +206,46 @@ execute:                    ; EXECUTE (a -- )
     inx
     jmp (W)                 ; Call word pulled from PSTACK directly
 
+FORTH_WORD "(state-exec)"   ; ------------------------------------------------
+p_state_exec_p:             ; (STATE-EXEC) ( a -- )     \ 'word
+                            ;              ( n a -- )   \ num 'number
+    lda PSTACK,X            ; Check: is TOS the `number` sentinel?
+    cmp #<(number)
+    bne p_state_exec_word
+    lda PSTACK+1,X
+    cmp #>(number)
+    bne p_state_exec_word
+p_state_exec_num:
+    inx                     ; pop 'number sentinel, TOS is now WORD address
+    inx                     ;
+    jsr number_sub          ; Interpret: convert in place, #word -> n on TOS
+    lda STATE
+    bne p_state_exec_comp_num
+    jmp next
+p_state_exec_comp_num:
+    ldy #$00                ; Compile address of lit to HERE
+    lda #<(lit)             ; TODO: use store_iy_w lit,DP macro without the final INY
+    sta (DP),Y
+    iny
+    lda #>(lit)
+    sta (DP),Y
+    inc_wptr DP
+    jmp comma               ; Compile value and pop it
+p_state_exec_comp_word:
+    ldy #$00
+    lda (VOCSEEK),Y         ; Load count byte of matched word
+    and #WPRCBIT            ; Check IMMEDIATE bit
+    bne p_state_exec_exec   ; Set: execute IMMEDIATE word in compile mode
+    jmp comma               ; Not immediate: compile CFA into thread
+p_state_exec_word:
+    lda STATE               ; Word found: TOS is CFA
+    bne p_state_exec_comp_word
+p_state_exec_exec:
+    jmp execute
+
 FORTH_WORD "(find)"         ; -------------------------------------------L243-
-p_find_p:                   ; (FIND) (a -- a)       \ for a dictionary word
-                            ;        (a -- a a)     \ for a number
+p_find_p:                   ; (FIND) (a -- a)       \ cword -> 'word
+                            ;        (a -- a a)     \ #word -> #word 'number
     init_vocseek            ; Initialize dictionary seek pointer
                             ; TODO: Check: if a != W => CMOVE to WORD
 p_find_p_word:
@@ -435,9 +472,50 @@ c_store:                    ; C! (b a -- )
     jmp store_lo_iw
 
 FORTH_WORD ":"              ; -------------------------------------------L823-
-colon:                      ; : ( -- )
+colon:                      ; : xxx ( -- )
     jmp enter
+    .word create            ; reads name [xxx] & builds header w/ JMP constant
+    .word colon_patch       ; patch CFA: constant->enter, retract DP by 2
+    .word right_bracket     ; enter compile mode
     .word exit
+colon_patch:                ; ( -- ) patch create'd CFA for colon definition
+    sec
+    lda DP
+    sbc #$05
+    sta Z                   ; Z = CFA lo = DP - 5
+    lda DP+1
+    sbc #$00
+    sta Z+1                 ; Z+1 = CFA hi
+    ldy #$01
+    lda #<(enter)
+    sta (Z),Y               ; Patch lo byte of JMP target
+    iny
+    lda #>(enter)
+    sta (Z),Y               ; Patch hi byte of JMP target
+    sec
+    lda DP
+    sbc #$02
+    sta DP
+    lda DP+1
+    sbc #$00
+    sta DP+1                ; Retract DP past constant value slot
+    jmp next
+
+FORTH_WORD_IMM ";"          ; -------------------------------------------L853-
+semicolon:                  ; ; ( -- )
+    jmp enter
+    .word sem_exit          ; compile exit into current thread
+    .word left_bracket      ; return to interpret mode
+    .word exit              ; exit semicolon's own thread
+sem_exit:                   ; ( -- ) compile address of exit into thread
+    ldy #$00
+    lda #<(exit)
+    sta (DP),Y
+    iny
+    lda #>(exit)
+    sta (DP),Y
+    inc_wptr DP
+    jmp next
 
 FORTH_WORD "constant"       ; ------------------------------------------------
 constant:
@@ -609,13 +687,13 @@ word_error:
 
 FORTH_WORD "number"         ; ------------------------------------------L2007-
 number:                     ; NUMBER (a -- n)
+    jsr number_sub
+    jmp next
+number_sub:                 ; Subroutine: INPPTR counted #string -> n on PSTACK
     lda PSTACK,X            ; Store pointer to the number candidate in INPPTR
     sta INPPTR              ; Lo byte of text pointer
     lda PSTACK+1,X
     sta INPPTR+1            ; Hi byte of text pointer
-    jsr number_sub
-    jmp next
-number_sub:                 ; Subroutine: INPPTR counted #string -> n on PSTACK
     ldy #$00
     lda (INPPTR),Y          ; Grab number of chars in number string
     tay                     ; Y <- char offset (start at end & move backwards)
@@ -707,7 +785,7 @@ interpret:                  ; INTERPRET ( -- )
     .word bl
     .word word
     .word p_find_p
-    .word execute
+    .word p_state_exec_p
     .word p_out_p
     .word exit
 
