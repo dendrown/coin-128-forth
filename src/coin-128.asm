@@ -223,12 +223,8 @@ p_state_exec_num:
     bne p_state_exec_comp_num
     jmp next
 p_state_exec_comp_num:
-    ldy #$00                ; Compile address of lit to HERE
-    lda #<(lit)             ; TODO: use store_iy_w lit,DP macro without the final INY
-    sta (DP),Y
-    iny
-    lda #>(lit)
-    sta (DP),Y
+    ldy #$00                ; Compile address of LIT to HERE
+    store_iy_w lit,DP
     inc_wptr DP
     jmp comma               ; Compile value and pop it
 p_state_exec_comp_word:
@@ -487,18 +483,8 @@ colon_patch:                ; ( -- ) patch create'd CFA for colon definition
     sbc #$00
     sta Z+1                 ; Z+1 = CFA hi
     ldy #$01
-    lda #<(enter)
-    sta (Z),Y               ; Patch lo byte of JMP target
-    iny
-    lda #>(enter)
-    sta (Z),Y               ; Patch hi byte of JMP target
-    sec
-    lda DP
-    sbc #$02
-    sta DP
-    lda DP+1
-    sbc #$00
-    sta DP+1                ; Retract DP past constant value slot
+    store_iy_w enter,Z      ; After JMP; patch enterLO enterHi
+    dec_wptr DP             ; Retract DP past constant value slot
     jmp next
 
 FORTH_WORD_IMM ";"          ; -------------------------------------------L853-
@@ -509,11 +495,7 @@ semicolon:                  ; ; ( -- )
     .word exit              ; exit semicolon's own thread
 sem_exit:                   ; ( -- ) compile address of exit into thread
     ldy #$00
-    lda #<(exit)
-    sta (DP),Y
-    iny
-    lda #>(exit)
-    sta (DP),Y
+    store_iy_w exit,DP
     inc_wptr DP
     jmp next
 
@@ -783,8 +765,8 @@ create_link:
     lda #OPC_JMP_abs        ; JMP constant
     sta (DP),Y
     iny
-    store_iy_w constant,DP
-    store_iy_ptr DP,DP      ; .word CFA
+    store_iyy_w constant,DP ; .word constantLo constantHi   [Y+=2]
+    store_iy_ptr DP,DP      ; .word CFA                     [Y+=1]
     adc_w #$05,DP           ; DP += `JMP constantLo constantHi cfaLo cfaHi`
     jmp exit
 

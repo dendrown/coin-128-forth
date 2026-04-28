@@ -82,8 +82,24 @@ curr_forth_word .set 0      ; Holds the link to the current FORTH_WORD
 .endmacro
 
 
+.macro sbc_w v,addr         ; subtract v from 16-bit word
+    sec
+    lda addr
+    sbc v
+    sta addr
+    lda addr+1
+    sbc #$00
+    sta addr+1
+.endmacro
+
+
 .macro inc_wptr addr        ; Increment word address pointer
     adc_w #$02,addr
+.endmacro
+
+
+.macro dec_wptr addr        ; Decrement word address pointer
+    sbc_w #$02,addr
 .endmacro
 
 
@@ -164,22 +180,35 @@ done:
 .endmacro
 
 
-.macro store_iy_w w,addr    ; Store a 16-bit value to (addr),Y & advance Y offset
+.macro store_iy_w w,addr
+    ; Store a 16-bit value to (addr),Y : Y left on hi (second) byte
     lda #<(w)
     sta (addr),Y
     iny
     lda #>(w)
     sta (addr),Y
+.endmacro
+
+
+.macro store_iyy_w w,addr
+    ; Store a 16-bit value to (addr),Y : advance Y offset past value
+    store_iy_w w,addr
     iny
 .endmacro
 
 
-.macro store_iy_ptr ptr,addr; Store pointer value to (addr),Y & advance Y offset
+.macro store_iy_ptr ptr,addr
+    ; Store pointer value to (addr),Y : Y left on hi (second) byte
     lda ptr
     sta (addr),Y
     iny
     lda ptr+1
     sta (addr),Y
+.endmacro
+
+.macro store_iyy_ptr ptr,addr
+    ; Store pointer value to (addr),Y : advance Y offset past ptr
+    store_iy_ptr ptr,addr
     iny
 .endmacro
 
